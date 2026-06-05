@@ -1,0 +1,9 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@* global:: is required: the <LinkPulse /> component type shadows the LinkPulse namespace inside
+   generated Razor code, so an unqualified "LinkPulse.Abstractions" binds to the type, not the namespace. *@
+@using global::LinkPulse.Abstractions
+@using global::LinkPulse.Measurement
+@using global::LinkPulse.Rendering

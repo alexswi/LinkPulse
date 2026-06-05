@@ -13,4 +13,11 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Pure presentation helpers (rating visuals, sparkline geometry, duration
+         formatting) are internal implementation detail, not public API, but are
+         exercised directly by the unit tests. -->
+    <InternalsVisibleTo Include="LinkPulse.Tests" />
+  </ItemGroup>
+
 </Project>
