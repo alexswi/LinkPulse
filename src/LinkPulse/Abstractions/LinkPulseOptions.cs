@@ -5,6 +5,11 @@ namespace LinkPulse.Abstractions;
 /// are surfaced as <c>[Parameter]</c> properties on the <c>&lt;LinkPulse /&gt;</c> component;
 /// defaults match the v1 spec (&#167;7 and &#167;13).
 /// </summary>
+/// <remarks>
+/// Values are not bounds-checked at construction. The documented limits (e.g.
+/// <see cref="MinPingIntervalMs"/>, positive window/sample counts) are enforced server-side
+/// when the probe endpoint and registry land (issues #4/#5), not here.
+/// </remarks>
 public sealed record LinkPulseOptions
 {
     /// <summary>The hard server-side lower bound on ping cadence, in milliseconds (&#167;7/&#167;11).</summary>
@@ -22,7 +27,11 @@ public sealed record LinkPulseOptions
     /// <summary>A ping with no echo within this many milliseconds is counted as lost.</summary>
     public int PingTimeoutMs { get; init; } = 5000;
 
-    /// <summary>RFC 3550 jitter smoothing gain (<c>G</c>).</summary>
+    /// <summary>
+    /// RFC 3550 jitter noise-reduction factor: the denominator <c>G</c> in
+    /// <c>J += (|D| &#8722; J) / G</c>. The smoothing gain is therefore <c>1/G</c>; a larger
+    /// value smooths more. The RFC's canonical value is 16.
+    /// </summary>
     public double JitterSmoothingFactor { get; init; } = 16;
 
     /// <summary>Snapshot reporting cadence, in milliseconds.</summary>
@@ -35,7 +44,7 @@ public sealed record LinkPulseOptions
     public int StaleThresholdMs { get; init; } = 30_000;
 
     /// <summary>How long a stale registry entry is retained, in milliseconds, before removal (default 2 h).</summary>
-    public long StaleRetentionMs { get; init; } = 7_200_000;
+    public int StaleRetentionMs { get; init; } = 7_200_000;
 
     /// <summary>How the client component renders.</summary>
     public DisplayMode Display { get; init; } = DisplayMode.Badge;
@@ -45,9 +54,12 @@ public sealed record LinkPulseOptions
 }
 
 /// <summary>
-/// Upper-bound tier boundaries for the three independent quality sub-ratings (&#167;6). Each
-/// metric is rated by comparing its value against these boundaries; the overall rating is the
-/// weakest of the three. Defaults match the v1 spec.
+/// Upper-bound tier boundaries for the three independent quality sub-ratings (&#167;6). A metric
+/// earns a tier when its value is strictly below that tier's bound (<c>&lt;</c>); the overall
+/// rating is the weakest of the three. Loss is the one exception: because its excellent bound
+/// defaults to 0%, the excellent tier is inclusive there (loss must equal 0). Defaults match
+/// the v1 spec; values are not validated here (monotonicity is assumed by the rating logic in
+/// a later issue).
 /// </summary>
 public sealed record QualityThresholds
 {
@@ -72,7 +84,7 @@ public sealed record QualityThresholds
     /// <summary>Jitter below this many milliseconds rates at least <see cref="QualityRating.Fair"/>; at or above is <see cref="QualityRating.Poor"/>.</summary>
     public double JitterFairMs { get; init; } = 60;
 
-    /// <summary>Loss at or below this percentage rates <see cref="QualityRating.Excellent"/> (0% by default).</summary>
+    /// <summary>Loss at or below this percentage rates <see cref="QualityRating.Excellent"/> (inclusive; 0% by default).</summary>
     public double LossExcellentPct { get; init; } = 0;
 
     /// <summary>Loss below this percentage rates at least <see cref="QualityRating.Good"/>.</summary>

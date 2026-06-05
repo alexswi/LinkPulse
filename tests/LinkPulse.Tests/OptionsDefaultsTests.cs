@@ -53,16 +53,12 @@ public sealed class OptionsDefaultsTests
     [Fact]
     public void QualityRating_is_ordered_so_min_picks_the_weakest_link()
     {
-        // The overall rating is computed as min(rtt, jitter, loss); the numerically
-        // smallest measured tier must therefore be the worst.
+        // The overall rating will be computed as min(rtt, jitter, loss); the numerically
+        // smallest measured tier must therefore be the worst. This ordering is the load-bearing
+        // contract — the rating logic (a later issue) depends on it.
         Assert.True(QualityRating.Poor < QualityRating.Fair);
         Assert.True(QualityRating.Fair < QualityRating.Good);
         Assert.True(QualityRating.Good < QualityRating.Excellent);
         Assert.True(QualityRating.Disconnected < QualityRating.Poor);
-
-        var overall = (QualityRating)Math.Min(
-            (int)QualityRating.Excellent,
-            Math.Min((int)QualityRating.Fair, (int)QualityRating.Good));
-        Assert.Equal(QualityRating.Fair, overall);
     }
 }

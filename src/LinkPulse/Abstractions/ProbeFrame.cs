@@ -12,9 +12,9 @@ namespace LinkPulse.Abstractions;
 public abstract record ProbeFrame;
 
 /// <summary>
-/// Client&#8594;server timing probe. The server echoes the frame back verbatim; it never
-/// parses or modifies <see cref="Payload"/>, so the client send-stamp stays opaque and RTT
-/// is computed entirely on the client clock.
+/// Client&#8594;server timing probe. The server treats <see cref="Payload"/> as opaque and
+/// echoes it back untouched, so the client send-stamp is never interpreted server-side and
+/// RTT is computed entirely on the client clock.
 /// </summary>
 public sealed record PingFrame : ProbeFrame
 {
@@ -29,6 +29,13 @@ public sealed record PingFrame : ProbeFrame
 /// Client&#8594;server aggregate report, sent on the snapshot cadence. Carries client identity
 /// plus the flattened metric fields that make up a <see cref="MetricSnapshot"/>.
 /// </summary>
+/// <remarks>
+/// This is untrusted, deserialized input. Unlike the domain <see cref="MetricSnapshot"/> (whose
+/// <c>Phase</c> is <c>required</c> because it is always constructed locally), the wire fields
+/// here are not <c>required</c> and an omitted <c>phase</c> deserializes to
+/// <see cref="ClientPhase.Server"/>. Presence and field ranges are validated server-side when
+/// the probe endpoint lands (#4/#5); <see cref="ToSnapshot"/> assumes an already-validated frame.
+/// </remarks>
 public sealed record SnapshotFrame : ProbeFrame
 {
     /// <summary>Stable per-browser identifier; the dashboard's primary grouping key.</summary>

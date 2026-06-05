@@ -9,7 +9,9 @@ namespace LinkPulse.Abstractions;
 /// </summary>
 /// <remarks>
 /// camelCase property naming and string-valued enums produce the exact wire shape from the
-/// v1 spec (&#167;3.5), e.g. <c>{"type":"ping","seq":...}</c> and <c>"phase":"Wasm"</c>.
+/// v1 spec (&#167;3.5), e.g. <c>{"type":"ping","seq":...}</c> and <c>"phase":"Wasm"</c>. The
+/// discriminator is emitted only when serializing through the <see cref="ProbeFrame"/> base
+/// type. The concrete wire shape is pinned by the serialization tests.
 /// </remarks>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
