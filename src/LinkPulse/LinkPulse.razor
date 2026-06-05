@@ -1,0 +1,96 @@
+@namespace LinkPulse
+
+@* Hidden mode measures and reports silently while rendering nothing (§8). *@
+@if (Display != DisplayMode.Hidden)
+{
+    var rating = DisplayedRating;
+    var label = QualityVisuals.Label(rating);
+    var modifier = QualityVisuals.Modifier(rating);
+    var currentRtt = FormatRtt(_engine.LatestRttMs);
+    var showDetails = Display == DisplayMode.Panel || _expanded;
+
+    <div class="lp lp--@modifier @(showDetails ? "lp--open" : null)" role="status" aria-live="polite">
+
+        @if (Display == DisplayMode.Badge)
+        {
+            <button type="button"
+                    class="lp-badge"
+                    @onclick="Toggle"
+                    aria-expanded="@(showDetails ? "true" : "false")"
+                    aria-label="Connection quality: @label, round-trip @currentRtt">
+                <span class="lp-dot" aria-hidden="true"></span>
+                <span class="lp-label">@label</span>
+                <span class="lp-rtt">@currentRtt</span>
+            </button>
+        }
+
+        @if (showDetails)
+        {
+            var spark = SparklineGeometry.Build(_engine.Window, SparklineWidth, SparklineHeight);
+
+            <div class="lp-panel @(_connected ? null : "lp-panel--stale")">
+                <div class="lp-panel-head">
+                    <span class="lp-dot" aria-hidden="true"></span>
+                    <span class="lp-label">@label</span>
+                    <span class="lp-phase">@(_phase == ClientPhase.Wasm ? "WASM" : "Server")</span>
+                </div>
+
+                @if (!_connected)
+                {
+                    <p class="lp-reconnecting">Disconnected — reconnecting @FormatElapsed(_downSinceMs)</p>
+                }
+
+                <svg class="lp-spark" viewBox="0 0 120 32" preserveAspectRatio="none"
+                     role="img" aria-label="Recent round-trip times">
+                    @foreach (var outage in spark.Outages)
+                    {
+                        <line class="lp-spark-outage" x1="@outage" y1="0" x2="@outage" y2="32" />
+                    }
+                    @foreach (var segment in spark.Segments)
+                    {
+                        <polyline class="lp-spark-line" points="@segment" />
+                    }
+                    @if (spark.LatestX is not null && spark.LatestY is not null)
+                    {
+                        <circle class="lp-spark-dot" cx="@spark.LatestX" cy="@spark.LatestY" r="2" />
+                    }
+                </svg>
+
+                <dl class="lp-metrics">
+                    <div>
+                        <dt>RTT</dt>
+                        <dd>@FormatMs(_snapshot?.RttAvg) <span class="lp-range">(@FormatMs(_snapshot?.RttMin) – @FormatMs(_snapshot?.RttMax))</span></dd>
+                    </div>
+                    <div>
+                        <dt>Jitter</dt>
+                        <dd>@FormatMs(_snapshot?.Jitter)</dd>
+                    </div>
+                    <div>
+                        <dt>Loss</dt>
+                        <dd>@FormatPct(_snapshot?.LossPct)</dd>
+                    </div>
+                    <div>
+                        <dt>Uptime</dt>
+                        <dd>@(_connected ? FormatElapsed(_connectedSinceMs) : "—")</dd>
+                    </div>
+                </dl>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private void Toggle() => _expanded = !_expanded;
+
+    private static string FormatRtt(double? ms) =>
+        ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0} ms") : "—";
+
+    private static string FormatMs(double? ms) =>
+        ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#} ms") : "—";
+
+    private static string FormatPct(double? pct) =>
+        pct is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#}%") : "—";
+
+    private string FormatElapsed(double? sinceMs) =>
+        sinceMs is double since ? DurationFormat.Compact((_nowMs - since) / 1000) : "0s";
+}
