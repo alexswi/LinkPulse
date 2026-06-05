@@ -55,13 +55,24 @@ public sealed class ProbeEndpointIntegrationTests
         return host;
     }
 
-    private static async Task<WebSocket> ConnectAsync(IHost host, string? origin = SameOrigin)
+    private static async Task<WebSocket> ConnectAsync(IHost host, string? origin = SameOrigin, string? userAgent = null)
     {
         var server = host.GetTestServer();
         var client = server.CreateWebSocketClient();
-        if (origin is not null)
+        if (origin is not null || userAgent is not null)
         {
-            client.ConfigureRequest = request => request.Headers.Origin = origin;
+            client.ConfigureRequest = request =>
+            {
+                if (origin is not null)
+                {
+                    request.Headers.Origin = origin;
+                }
+
+                if (userAgent is not null)
+                {
+                    request.Headers.UserAgent = userAgent;
+                }
+            };
         }
 
         var uri = new UriBuilder(server.BaseAddress) { Scheme = "ws", Path = ProbePath }.Uri;
@@ -232,6 +243,59 @@ public sealed class ProbeEndpointIntegrationTests
         {
             socket.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task The_connection_user_agent_is_captured_on_the_registry_entry()
+    {
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host, userAgent: "Mozilla/5.0 (probe-test)");
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.UserAgent is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("Mozilla/5.0 (probe-test)", view!.UserAgent);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task An_over_long_user_agent_is_truncated_to_the_bound()
+    {
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        // 300 chars — past the 256 untrusted-input bound (§11); the stored value must be capped.
+        using var socket = await ConnectAsync(host, userAgent: new string('a', 300));
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.UserAgent is not null ? v : null);
+
+        Assert.NotNull(view);
+        var length = view!.UserAgent!.Length;
+        Assert.Equal(256, length);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    private static Task SendSnapshotAsync(WebSocket socket, Guid clientId, Guid sessionId)
+    {
+        ProbeFrame frame = SnapshotFrame.FromSnapshot(clientId, sessionId, new MetricSnapshot
+        {
+            Phase = ClientPhase.Server,
+            RttMin = 10,
+            RttAvg = 12,
+            RttMax = 15,
+            Jitter = 1,
+            LossPct = 0,
+            SampleCount = 30,
+        });
+        return SendTextAsync(socket, JsonSerializer.Serialize(frame, LinkPulseJsonContext.Default.ProbeFrame));
     }
 
     // Polls a thread-safe read until it returns non-null or a short timeout elapses. The probe handler

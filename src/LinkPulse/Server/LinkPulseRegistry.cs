@@ -68,7 +68,12 @@ public sealed class LinkPulseRegistry
     /// <param name="sessionId">The validated per-connection identifier.</param>
     /// <param name="snapshot">The validated metrics to store.</param>
     /// <param name="nowUtc">The server-clock time the snapshot was received.</param>
-    public void RecordSnapshot(Guid clientId, Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc)
+    /// <param name="userAgent">
+    /// The connection's bounded <c>User-Agent</c> string (&#167;10/&#167;11), or <see langword="null"/>
+    /// when unknown; the latest non-empty value is retained on the entry for the dashboard's optional
+    /// user-agent column.
+    /// </param>
+    public void RecordSnapshot(Guid clientId, Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc, string? userAgent = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -85,7 +90,7 @@ public sealed class LinkPulseRegistry
             entry = _entries.GetOrAdd(clientId, static (id, now) => new ConnectionEntry(id, now), nowUtc);
         }
 
-        entry.RecordSnapshot(sessionId, snapshot, nowUtc);
+        entry.RecordSnapshot(sessionId, snapshot, nowUtc, userAgent);
         OnChanged();
     }
 
@@ -102,6 +107,24 @@ public sealed class LinkPulseRegistry
             entry.RemoveSession(sessionId);
             OnChanged();
         }
+    }
+
+    /// <summary>
+    /// Removes a client entry outright. This backs the dashboard's manual "remove stale entry" action
+    /// (&#167;10) &#8212; the only registry mutation a v1 operator can trigger &#8212; and raises
+    /// <see cref="Changed"/> so the dashboard reflects the removal at once.
+    /// </summary>
+    /// <param name="clientId">The client to remove.</param>
+    /// <returns><see langword="true"/> if an entry was removed; <see langword="false"/> if the client was unknown.</returns>
+    public bool Remove(Guid clientId)
+    {
+        if (_entries.TryRemove(clientId, out _))
+        {
+            OnChanged();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

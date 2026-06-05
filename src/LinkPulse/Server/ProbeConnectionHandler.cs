@@ -25,10 +25,16 @@ internal static class ProbeConnectionHandler
     /// past the message-size guard. On exit, any session this connection registered is removed from
     /// the registry so the dashboard's active-session count stays accurate.
     /// </summary>
+    /// <param name="socket">The accepted probe socket.</param>
+    /// <param name="registry">The registry to record validated snapshots into.</param>
+    /// <param name="timeProvider">The clock used for the §11 ping/snapshot throttle and snapshot timestamps.</param>
+    /// <param name="userAgent">The connection's already-bounded <c>User-Agent</c> (&#167;10), or <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Fires when the request is aborted or the server is shutting down.</param>
     public static async Task RunAsync(
         WebSocket socket,
         LinkPulseRegistry registry,
         TimeProvider timeProvider,
+        string? userAgent,
         CancellationToken cancellationToken)
     {
         var minInterval = TimeSpan.FromMilliseconds(LinkPulseOptions.MinPingIntervalMs);
@@ -100,7 +106,7 @@ internal static class ProbeConnectionHandler
                         {
                             clientId = cid;
                             sessionId = sid;
-                            registry.RecordSnapshot(cid, sid, snapshot, timeProvider.GetUtcNow());
+                            registry.RecordSnapshot(cid, sid, snapshot, timeProvider.GetUtcNow(), userAgent);
                         }
 
                         break;

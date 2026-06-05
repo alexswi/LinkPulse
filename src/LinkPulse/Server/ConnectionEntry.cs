@@ -23,6 +23,7 @@ internal sealed class ConnectionEntry
     private DateTimeOffset _firstSeen;
     private DateTimeOffset _lastSeen;
     private bool _stale;
+    private string? _userAgent;
 
     internal ConnectionEntry(Guid clientId, DateTimeOffset nowUtc)
     {
@@ -35,8 +36,9 @@ internal sealed class ConnectionEntry
     /// Applies a validated snapshot: registers the session, refreshes the latest metrics, phase, and
     /// last-seen, appends a history point, and &#8212; if the entry had gone stale &#8212; clears the
     /// stale flag and records an outage marker for the gap (&#167;5.3) <em>before</em> the new point.
+    /// The latest non-empty <paramref name="userAgent"/> is retained for the dashboard (&#167;10).
     /// </summary>
-    internal void RecordSnapshot(Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc)
+    internal void RecordSnapshot(Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc, string? userAgent = null)
     {
         lock (_gate)
         {
@@ -50,6 +52,11 @@ internal sealed class ConnectionEntry
             _latest = snapshot;
             _phase = snapshot.Phase;
             _lastSeen = nowUtc;
+            if (!string.IsNullOrEmpty(userAgent))
+            {
+                _userAgent = userAgent;
+            }
+
             Append(new ConnectionHistoryPoint(nowUtc, snapshot));
         }
     }
@@ -105,6 +112,7 @@ internal sealed class ConnectionEntry
                 LastSeenUtc = _lastSeen,
                 IsStale = _stale,
                 History = [.. _history],
+                UserAgent = _userAgent,
             };
         }
     }
