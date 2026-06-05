@@ -40,4 +40,11 @@ public sealed record ConnectionView
 
     /// <summary>The rolling history (oldest first, at most 60 points) for the sparkline and outage markers.</summary>
     public required IReadOnlyList<ConnectionHistoryPoint> History { get; init; }
+
+    /// <summary>
+    /// The connection's reported <c>User-Agent</c>, bounded as untrusted input (&#167;11), or
+    /// <see langword="null"/> if none was sent. The only potentially identifying field, surfaced on the
+    /// dashboard only when the operator toggles it on (&#167;10).
+    /// </summary>
+    public string? UserAgent { get; init; }
 }

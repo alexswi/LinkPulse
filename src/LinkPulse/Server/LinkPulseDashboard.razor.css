@@ -1,0 +1,191 @@
+/* LinkPulse dashboard styles (scoped). Same theming convention as the client component: every colour
+   is a --lp-* custom property with a sensible fallback, so the host re-themes by setting --lp-* on any
+   ancestor. Colour is never the only signal — every rating renders its label and count alongside the
+   dot (accessibility, §8/§10). Pure CSS/SVG, no charting library. */
+
+.lpd {
+    font-family: var(--lp-font, system-ui, sans-serif);
+    font-size: var(--lp-font-size, 0.8125rem);
+    color: var(--lp-fg, #1f2937);
+}
+
+.lpd--denied {
+    padding: 1rem;
+    border: 1px solid var(--lp-border, rgba(0, 0, 0, 0.12));
+    border-radius: var(--lp-radius, 0.5rem);
+    color: var(--lp-muted, #6b7280);
+}
+
+/* Per-rating accent, shared with the client palette via --lp-color-*. */
+.lpd-q--excellent    { --lpd-accent: var(--lp-color-excellent, #16a34a); }
+.lpd-q--good         { --lpd-accent: var(--lp-color-good, #65a30d); }
+.lpd-q--fair         { --lpd-accent: var(--lp-color-fair, #d97706); }
+.lpd-q--poor         { --lpd-accent: var(--lp-color-poor, #dc2626); }
+.lpd-q--disconnected { --lpd-accent: var(--lp-color-disconnected, #9ca3af); }
+
+.lpd-dot {
+    display: inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background: var(--lpd-accent, #9ca3af);
+    flex: none;
+}
+
+/* Summary bar */
+.lpd-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.lpd-stat { color: var(--lp-muted, #6b7280); }
+.lpd-stat strong { color: var(--lp-fg, #1f2937); font-variant-numeric: tabular-nums; }
+.lpd-stat--stale strong { color: var(--lp-color-poor, #dc2626); }
+
+.lpd-dist { display: inline-flex; flex-wrap: wrap; gap: 0.375rem; margin-left: auto; }
+
+.lpd-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--lp-border, rgba(0, 0, 0, 0.12));
+    border-radius: 999px;
+}
+
+.lpd-pill-label { color: var(--lp-muted, #6b7280); }
+.lpd-pill-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Filters */
+.lpd-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem; }
+.lpd-filters label { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--lp-muted, #6b7280); }
+.lpd-filters select {
+    font: inherit;
+    padding: 0.15rem 0.35rem;
+    border: 1px solid var(--lp-border, rgba(0, 0, 0, 0.12));
+    border-radius: var(--lp-radius, 0.5rem);
+    background: var(--lp-bg, #ffffff);
+    color: var(--lp-fg, #1f2937);
+}
+
+/* Table */
+.lpd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.lpd-table th,
+.lpd-table td {
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid var(--lp-border, rgba(0, 0, 0, 0.08));
+    white-space: nowrap;
+}
+
+.lpd-table .lpd-num { text-align: right; }
+
+.lpd-table thead th {
+    color: var(--lp-muted, #6b7280);
+    font-weight: 600;
+    border-bottom-width: 2px;
+}
+
+.lpd-sortable button {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    cursor: pointer;
+}
+
+.lpd-sortable button:hover { color: var(--lp-fg, #1f2937); }
+.lpd-sorted button { color: var(--lp-fg, #1f2937); }
+.lpd-caret { font-size: 0.7em; }
+
+.lpd-row--stale { color: var(--lp-muted, #6b7280); }
+.lpd-row--stale .lpd-status-label { font-style: italic; }
+
+.lpd-status { display: inline-flex; align-items: center; gap: 0.375rem; }
+.lpd-status-label { font-weight: 600; }
+
+.lpd-id {
+    padding: 0.05rem 0.3rem;
+    border: 1px solid transparent;
+    border-radius: var(--lp-radius, 0.4rem);
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.lpd-id:hover { border-color: var(--lp-border, rgba(0, 0, 0, 0.2)); }
+.lpd-id code { font-family: var(--lp-mono, ui-monospace, monospace); }
+
+.lpd-expand {
+    width: 1.4rem;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--lp-muted, #6b7280);
+    cursor: pointer;
+}
+
+.lpd-remove {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--lp-color-poor, #dc2626);
+    border-radius: var(--lp-radius, 0.4rem);
+    background: none;
+    font: inherit;
+    color: var(--lp-color-poor, #dc2626);
+    cursor: pointer;
+}
+
+.lpd-remove:hover { background: var(--lp-color-poor, #dc2626); color: #ffffff; }
+
+.lpd-empty td { padding: 1rem; color: var(--lp-muted, #6b7280); text-align: center; }
+
+/* Row detail */
+.lpd-detail td { white-space: normal; background: var(--lp-detail-bg, rgba(0, 0, 0, 0.02)); }
+
+.lpd-detail-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    padding: 0.5rem 0.25rem;
+}
+
+.lpd-detail-spark h4,
+.lpd-detail-meta dt { margin: 0 0 0.25rem; color: var(--lp-muted, #6b7280); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.lpd-detail-spark h4 { font-weight: 600; }
+
+.lpd-spark { display: block; width: 15rem; height: 2.5rem; overflow: visible; }
+.lpd-spark-line { fill: none; stroke: var(--lp-accent, #65a30d); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.lpd-spark-outage { stroke: var(--lp-color-poor, #dc2626); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.6; }
+.lpd-spark-dot { fill: var(--lp-accent, #65a30d); }
+
+.lpd-detail-meta { display: grid; gap: 0.4rem; margin: 0; }
+.lpd-detail-meta dd { margin: 0; }
+.lpd-sessions { margin: 0; padding-left: 1rem; }
+.lpd-sessions code { font-family: var(--lp-mono, ui-monospace, monospace); font-size: 0.75rem; }
+.lpd-muted { color: var(--lp-muted, #6b7280); }
+
+.lpd-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

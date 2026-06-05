@@ -1,0 +1,200 @@
+@namespace LinkPulse.Server
+@using Microsoft.AspNetCore.Components.Authorization
+
+@* Default-deny (§11): nothing renders unless the user satisfies the Policy/Roles (or, with neither
+   set, is authenticated). The host also places this on its own authorized route. *@
+<AuthorizeView Policy="@Policy" Roles="@Roles">
+    <Authorized>
+        <div class="lpd">
+            <div class="lpd-summary">
+                <span class="lpd-stat"><strong>@_summary.Total</strong> total</span>
+                <span class="lpd-stat lpd-stat--live"><strong>@_summary.Live</strong> live</span>
+                <span class="lpd-stat lpd-stat--stale"><strong>@_summary.Stale</strong> stale</span>
+                <span class="lpd-dist">
+                    @foreach (var (rating, count) in Distribution())
+                    {
+                        var modifier = QualityVisuals.Modifier(rating);
+                        <span class="lpd-pill lpd-q--@modifier" title="@QualityVisuals.Label(rating)">
+                            <span class="lpd-dot" aria-hidden="true"></span>
+                            <span class="lpd-pill-label">@QualityVisuals.Label(rating)</span>
+                            <span class="lpd-pill-count">@count</span>
+                        </span>
+                    }
+                </span>
+            </div>
+
+            <div class="lpd-filters">
+                <label>
+                    Quality
+                    <select @onchange="OnQualityFilterChanged">
+                        <option value="" selected="@(_qualityFilter is null)">All</option>
+                        @foreach (var rating in FilterableRatings)
+                        {
+                            <option value="@rating" selected="@(_qualityFilter == rating)">@QualityVisuals.Label(rating)</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Show
+                    <select @onchange="OnLivenessFilterChanged">
+                        <option value="@LivenessFilter.All" selected="@(_livenessFilter == LivenessFilter.All)">All</option>
+                        <option value="@LivenessFilter.Live" selected="@(_livenessFilter == LivenessFilter.Live)">Live only</option>
+                        <option value="@LivenessFilter.Stale" selected="@(_livenessFilter == LivenessFilter.Stale)">Stale only</option>
+                    </select>
+                </label>
+            </div>
+
+            <table class="lpd-table">
+                <thead>
+                    <tr>
+                        <th class="lpd-col-expand" scope="col"><span class="lpd-visually-hidden">Detail</span></th>
+                        @SortHeader(DashboardColumn.Quality, "Quality")
+                        @SortHeader(DashboardColumn.ClientId, "Client")
+                        @SortHeader(DashboardColumn.Sessions, "Sessions")
+                        @SortHeader(DashboardColumn.Phase, "Phase")
+                        @SortHeader(DashboardColumn.Rtt, "RTT avg")
+                        @SortHeader(DashboardColumn.Jitter, "Jitter")
+                        @SortHeader(DashboardColumn.Loss, "Loss")
+                        @SortHeader(DashboardColumn.LastSeen, "Last seen")
+                        @SortHeader(DashboardColumn.Uptime, "Uptime")
+                        <th class="lpd-col-actions" scope="col"><span class="lpd-visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_rows.Count == 0)
+                    {
+                        <tr class="lpd-empty"><td colspan="11">No connections.</td></tr>
+                    }
+                    @foreach (var row in _rows)
+                    {
+                        var modifier = QualityVisuals.Modifier(row.Rating);
+                        var isOpen = _expanded == row.ClientId;
+                        <tr class="lpd-row @(row.IsStale ? "lpd-row--stale" : null)">
+                            <td class="lpd-col-expand">
+                                <button type="button" class="lpd-expand" @onclick="() => ToggleExpand(row.ClientId)"
+                                        aria-expanded="@(isOpen ? "true" : "false")"
+                                        aria-label="@(isOpen ? "Collapse detail" : "Expand detail")">
+                                    @(isOpen ? "▾" : "▸")
+                                </button>
+                            </td>
+                            <td>
+                                <span class="lpd-status lpd-q--@modifier">
+                                    <span class="lpd-dot" aria-hidden="true"></span>
+                                    <span class="lpd-status-label">@QualityVisuals.Label(row.Rating)</span>
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="lpd-id" @onclick="() => CopyClientIdAsync(row.ClientId)"
+                                        title="@row.ClientId — click to copy">
+                                    <code>@ShortId(row.ClientId)…</code>
+                                </button>
+                            </td>
+                            <td class="lpd-num">@row.ActiveSessions.Count</td>
+                            <td>@(row.Phase == ClientPhase.Wasm ? "WASM" : "Server")</td>
+                            <td class="lpd-num">@FormatMs(row.RttAvg)</td>
+                            <td class="lpd-num">@FormatMs(row.Jitter)</td>
+                            <td class="lpd-num">@FormatPct(row.LossPct)</td>
+                            <td class="lpd-num">@FormatAge(row.LastSeenUtc)</td>
+                            <td class="lpd-num">@FormatUptime(row.FirstSeenUtc)</td>
+                            <td class="lpd-col-actions">
+                                @if (row.IsStale)
+                                {
+                                    <button type="button" class="lpd-remove" @onclick="() => RemoveEntry(row.ClientId)">Remove</button>
+                                }
+                            </td>
+                        </tr>
+                        @if (isOpen)
+                        {
+                            <tr class="lpd-detail">
+                                <td colspan="11">
+                                    @RenderDetail(row)
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="lpd lpd--denied" role="alert">
+            <p>You are not authorized to view the connection dashboard.</p>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    // The five ratings in the summary, worst-first to match the default table sort.
+    private static readonly QualityRating[] DistributionOrder =
+    [
+        QualityRating.Disconnected, QualityRating.Poor, QualityRating.Fair, QualityRating.Good, QualityRating.Excellent,
+    ];
+
+    // The five selectable quality ratings in the filter (the four measured tiers plus Disconnected).
+    private static readonly QualityRating[] FilterableRatings =
+    [
+        QualityRating.Excellent, QualityRating.Good, QualityRating.Fair, QualityRating.Poor, QualityRating.Disconnected,
+    ];
+
+    private IEnumerable<(QualityRating Rating, int Count)> Distribution() => DistributionOrder.Select(r => (r, r switch
+    {
+        QualityRating.Excellent => _summary.Excellent,
+        QualityRating.Good => _summary.Good,
+        QualityRating.Fair => _summary.Fair,
+        QualityRating.Poor => _summary.Poor,
+        _ => _summary.Disconnected,
+    }));
+
+    private RenderFragment SortHeader(DashboardColumn column, string label) => @<th scope="col" class="lpd-sortable @(_sortColumn == column ? "lpd-sorted" : null)">
+        <button type="button" @onclick="() => SortBy(column)">@label<span class="lpd-caret">@SortCaret(column)</span></button>
+    </th>;
+
+    private RenderFragment RenderDetail(ConnectionRow row) => @<div class="lpd-detail-grid">
+        <div class="lpd-detail-spark">
+            <h4>RTT history</h4>
+            @{
+                var spark = SparklineGeometry.Build(ServerHistory.ToSamples(row.History), SparklineWidth, SparklineHeight);
+            }
+            <svg class="lpd-spark" viewBox="0 0 240 40" preserveAspectRatio="none" role="img" aria-label="Recorded round-trip history">
+                @foreach (var outage in spark.Outages)
+                {
+                    <line class="lpd-spark-outage" x1="@outage" y1="0" x2="@outage" y2="40" />
+                }
+                @foreach (var segment in spark.Segments)
+                {
+                    <polyline class="lpd-spark-line" points="@segment" />
+                }
+                @if (spark.LatestX is not null && spark.LatestY is not null)
+                {
+                    <circle class="lpd-spark-dot" cx="@spark.LatestX" cy="@spark.LatestY" r="2.5" />
+                }
+            </svg>
+        </div>
+        <dl class="lpd-detail-meta">
+            <div><dt>First seen</dt><dd>@FormatAge(row.FirstSeenUtc)</dd></div>
+            <div><dt>Last seen</dt><dd>@FormatAge(row.LastSeenUtc)</dd></div>
+            <div>
+                <dt>Sessions (@row.ActiveSessions.Count)</dt>
+                <dd>
+                    @if (row.ActiveSessions.Count == 0)
+                    {
+                        <span class="lpd-muted">none active</span>
+                    }
+                    else
+                    {
+                        <ul class="lpd-sessions">
+                            @foreach (var session in row.ActiveSessions)
+                            {
+                                <li><code>@session</code></li>
+                            }
+                        </ul>
+                    }
+                </dd>
+            </div>
+            @if (ShowUserAgent)
+            {
+                <div><dt>User-agent</dt><dd>@(string.IsNullOrEmpty(row.UserAgent) ? "—" : row.UserAgent)</dd></div>
+            }
+        </dl>
+    </div>;
+}

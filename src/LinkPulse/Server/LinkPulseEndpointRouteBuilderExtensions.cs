@@ -27,6 +27,10 @@ namespace LinkPulse.Server;
 /// </remarks>
 public static class LinkPulseEndpointRouteBuilderExtensions
 {
+    // The User-Agent is untrusted input (§11): bound its length before it is stored and rendered, so a
+    // client cannot bloat a registry entry with a megabyte-long header. The dashboard HTML-encodes it.
+    private const int MaxUserAgentLength = 256;
+
     /// <summary>
     /// Maps the probe endpoint at <paramref name="path"/> (default <see cref="LinkPulseProbeDefaults.ProbePath"/>).
     /// </summary>
@@ -68,16 +72,36 @@ public static class LinkPulseEndpointRouteBuilderExtensions
                 return;
             }
 
+            var userAgent = BoundUserAgent(context.Request.Headers.UserAgent);
             try
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, context.RequestAborted);
+                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, userAgent, context.RequestAborted);
             }
             finally
             {
                 gate.Release(ip);
             }
         });
+    }
+
+    private static string? BoundUserAgent(Microsoft.Extensions.Primitives.StringValues header)
+    {
+        var value = header.ToString().Trim();
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        if (value.Length <= MaxUserAgentLength)
+        {
+            return value;
+        }
+
+        // Trim back off a lone high surrogate if the cap happens to fall between a surrogate pair, so
+        // the stored value never ends with half a code point.
+        var end = char.IsHighSurrogate(value[MaxUserAgentLength - 1]) ? MaxUserAgentLength - 1 : MaxUserAgentLength;
+        return value[..end];
     }
 
     private static bool IsAllowedOrigin(HttpRequest request)

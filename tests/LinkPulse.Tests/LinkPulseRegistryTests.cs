@@ -212,4 +212,54 @@ public sealed class LinkPulseRegistryTests
         registry.RemoveSession(clientId, sessionId);
         Assert.Equal(3, fired);
     }
+
+    [Fact]
+    public void Remove_drops_the_entry_and_raises_changed()
+    {
+        var registry = NewRegistry();
+        var clientId = Guid.NewGuid();
+        registry.RecordSnapshot(clientId, Guid.NewGuid(), Snapshot(), T0);
+        var fired = 0;
+        registry.Changed += (_, _) => fired++;
+
+        var removed = registry.Remove(clientId);
+
+        Assert.True(removed);
+        Assert.Equal(0, registry.Count);
+        Assert.False(registry.TryGetConnection(clientId, out _));
+        Assert.Equal(1, fired);
+    }
+
+    [Fact]
+    public void Removing_an_unknown_client_returns_false_and_raises_nothing()
+    {
+        var registry = NewRegistry();
+        var fired = 0;
+        registry.Changed += (_, _) => fired++;
+
+        var removed = registry.Remove(Guid.NewGuid());
+
+        Assert.False(removed);
+        Assert.Equal(0, fired);
+    }
+
+    [Fact]
+    public void The_latest_non_empty_user_agent_is_retained_and_surfaced()
+    {
+        var registry = NewRegistry();
+        var clientId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0, "Mozilla/5.0");
+        // A later snapshot with no UA must not erase the known one.
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(1), userAgent: null);
+        registry.TryGetConnection(clientId, out var afterNull);
+        Assert.Equal("Mozilla/5.0", afterNull!.UserAgent);
+
+        // An empty UA is likewise ignored; a new non-empty value replaces it.
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(2), userAgent: "");
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(3), "Chrome/2");
+        registry.TryGetConnection(clientId, out var afterUpdate);
+        Assert.Equal("Chrome/2", afterUpdate!.UserAgent);
+    }
 }
