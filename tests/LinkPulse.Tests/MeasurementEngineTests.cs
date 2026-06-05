@@ -1,5 +1,5 @@
-using LinkPulse;
 using LinkPulse.Abstractions;
+using LinkPulse.Measurement;
 
 namespace LinkPulse.Tests;
 
@@ -210,4 +210,108 @@ public sealed class MeasurementEngineTests
         Assert.Null(engine.LatestRttMs);
         Assert.Empty(engine.Window);
     }
+
+    [Fact]
+    public void Jitter_treats_clean_samples_either_side_of_a_loss_as_consecutive()
+    {
+        // A loss between two clean samples does not reset the jitter recurrence: D is taken across
+        // the gap (RFC 3550 is over received packets). This pins that deliberate choice — were the
+        // loss to reset `prev`, there'd be no D pair and jitter would be 0 instead of 2.5.
+        var engine = NewEngine();
+        engine.RecordPing(1, 0);
+        engine.RecordEcho(1, 10); // clean RTT 10
+        engine.RecordPing(2, 1000);
+        engine.ExpireOutstanding(6001); // seq 2 lost
+        engine.RecordPing(3, 0);
+        engine.RecordEcho(3, 50); // clean RTT 50
+
+        // single D = |50 − 10| = 40 → 0 + (40 − 0)/16 = 2.5
+        Assert.Equal(2.5, engine.CreateSnapshot(ClientPhase.Server).Jitter, 12);
+    }
+
+    [Fact]
+    public void Several_pings_expiring_together_enter_the_window_in_send_order()
+    {
+        var engine = NewEngine();
+        engine.RecordPing(3, 0); // recorded out of seq order
+        engine.RecordPing(1, 0);
+        engine.RecordPing(2, 0);
+
+        engine.ExpireOutstanding(6000); // all three time out in one call
+
+        Assert.Equal([1L, 2L, 3L], engine.Window.Select(s => s.Seq)); // ascending seq == send order
+        Assert.All(engine.Window, s => Assert.True(s.IsLost));
+    }
+
+    [Fact]
+    public void An_echo_for_a_never_sent_seq_is_ignored()
+    {
+        var engine = NewEngine();
+
+        engine.RecordEcho(99, 10); // no ping was ever recorded for seq 99
+
+        Assert.Empty(engine.Window);
+        Assert.Equal(0, engine.OutstandingCount);
+        Assert.Equal(0, engine.CreateSnapshot(ClientPhase.Server).SampleCount);
+    }
+
+    [Fact]
+    public void A_duplicate_echo_for_an_already_resolved_seq_is_ignored()
+    {
+        var engine = NewEngine();
+        engine.RecordPing(1, 0);
+        engine.RecordEcho(1, 20); // clean RTT 20
+
+        engine.RecordEcho(1, 25); // duplicate — must not create a second sample or perturb metrics
+
+        var snap = engine.CreateSnapshot(ClientPhase.Server);
+        Assert.Single(engine.Window);
+        Assert.Equal(1, snap.SampleCount);
+        Assert.Equal(20, snap.RttAvg, 10);
+    }
+
+    [Fact]
+    public void A_loss_aging_out_of_the_window_no_longer_counts_toward_loss()
+    {
+        // Loss% is computed only over the retained window, so an old loss aging out must change it.
+        var engine = NewEngine(windowSize: 2);
+        engine.RecordPing(1, 1000);
+        engine.ExpireOutstanding(6001); // lost(1) — oldest
+        engine.RecordPing(2, 0);
+        engine.RecordEcho(2, 10); // clean
+        engine.RecordPing(3, 0);
+        engine.RecordEcho(3, 20); // clean — evicts lost(1)
+
+        var snap = engine.CreateSnapshot(ClientPhase.Server);
+        Assert.Equal(2, snap.SampleCount);
+        Assert.Equal(0, snap.LossPct, 10);
+        Assert.DoesNotContain(engine.Window, s => s.IsLost);
+    }
+
+    [Fact]
+    public void Latest_rtt_is_null_once_the_last_clean_sample_is_evicted()
+    {
+        var engine = NewEngine(windowSize: 2);
+        engine.RecordPing(1, 0);
+        engine.RecordEcho(1, 15); // the only clean sample
+        engine.RecordPing(2, 1000);
+        engine.RecordPing(3, 2000);
+
+        engine.ExpireOutstanding(7002); // lost(2), lost(3) evict clean(1)
+
+        Assert.Null(engine.LatestRttMs);
+        Assert.DoesNotContain(engine.Window, s => !s.IsLost);
+    }
+
+    [Theory]
+    [InlineData(0, 5000, 16)]    // windowSize < 1
+    [InlineData(30, -1, 16)]     // negative timeout
+    [InlineData(30, 5000, 0)]    // G == 0 (would divide the jitter recurrence)
+    [InlineData(30, 5000, -4)]   // negative G
+    public void The_constructor_rejects_out_of_range_parameters(int windowSize, double timeout, double g) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MeasurementEngine(windowSize, timeout, g));
+
+    [Fact]
+    public void The_options_constructor_rejects_null() =>
+        Assert.Throws<ArgumentNullException>(() => new MeasurementEngine(null!));
 }

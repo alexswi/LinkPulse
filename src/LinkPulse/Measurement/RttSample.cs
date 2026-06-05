@@ -1,4 +1,4 @@
-namespace LinkPulse;
+namespace LinkPulse.Measurement;
 
 /// <summary>
 /// A single resolved entry in the measurement window: one ping that has been paired with its

@@ -1,6 +1,6 @@
 using LinkPulse.Abstractions;
 
-namespace LinkPulse;
+namespace LinkPulse.Measurement;
 
 /// <summary>
 /// Classifies measured metrics into a <see cref="QualityRating"/> using the weakest-link model

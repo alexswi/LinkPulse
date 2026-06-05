@@ -1,5 +1,5 @@
-using LinkPulse;
 using LinkPulse.Abstractions;
+using LinkPulse.Measurement;
 
 namespace LinkPulse.Tests;
 
@@ -130,5 +130,56 @@ public sealed class QualityClassificationTests
 
         Assert.Equal(QualityRating.Poor, stabilizer.Push(QualityRating.Poor)); // adopted at once
         Assert.Equal(QualityRating.Poor, stabilizer.Current);
+    }
+
+    [Fact]
+    public void Hysteresis_of_one_adopts_every_reading_immediately()
+    {
+        // Documented contract: a value of 1 (or less) makes every push take effect at once.
+        var stabilizer = new QualityStabilizer(1);
+        stabilizer.Push(QualityRating.Excellent);
+
+        Assert.Equal(QualityRating.Poor, stabilizer.Push(QualityRating.Poor));
+        Assert.Equal(QualityRating.Good, stabilizer.Push(QualityRating.Good));
+    }
+
+    [Fact]
+    public void Reset_mid_streak_discards_the_pending_change()
+    {
+        var stabilizer = new QualityStabilizer(3);
+        stabilizer.Push(QualityRating.Excellent);
+        stabilizer.Push(QualityRating.Good); // Good streak = 1
+        stabilizer.Push(QualityRating.Good); // Good streak = 2 (pending)
+
+        stabilizer.Reset();
+
+        // The half-built Good streak is gone and the stabilizer is re-armed, so the next, different
+        // reading is adopted immediately rather than the pending Good completing on its 3rd push.
+        Assert.Equal(QualityRating.Fair, stabilizer.Push(QualityRating.Fair));
+    }
+
+    [Fact]
+    public void Disconnected_is_not_specially_filtered_and_passes_through_hysteresis()
+    {
+        // Characterization: the stabilizer treats Disconnected like any other rating (the immediate
+        // disconnect transition is owned by #4 via Reset, not by this filter).
+        var stabilizer = new QualityStabilizer(3);
+        stabilizer.Push(QualityRating.Excellent);
+
+        Assert.Equal(QualityRating.Excellent, stabilizer.Push(QualityRating.Disconnected)); // 1
+        Assert.Equal(QualityRating.Excellent, stabilizer.Push(QualityRating.Disconnected)); // 2
+        Assert.Equal(QualityRating.Disconnected, stabilizer.Push(QualityRating.Disconnected)); // 3 → switch
+    }
+
+    [Fact]
+    public void Classification_methods_reject_null_arguments()
+    {
+        var snapshot = new MetricSnapshot { Phase = ClientPhase.Server };
+
+        Assert.Throws<ArgumentNullException>(() => QualityCalculator.ClassifyRtt(0, null!));
+        Assert.Throws<ArgumentNullException>(() => QualityCalculator.ClassifyJitter(0, null!));
+        Assert.Throws<ArgumentNullException>(() => QualityCalculator.ClassifyLoss(0, null!));
+        Assert.Throws<ArgumentNullException>(() => QualityCalculator.Classify(snapshot, null!));
+        Assert.Throws<ArgumentNullException>(() => QualityCalculator.Classify(null!, Thresholds));
     }
 }

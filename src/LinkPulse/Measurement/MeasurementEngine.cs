@@ -1,6 +1,6 @@
 using LinkPulse.Abstractions;
 
-namespace LinkPulse;
+namespace LinkPulse.Measurement;
 
 /// <summary>
 /// The pure-C# measurement core: turns a stream of ping/echo events into RTT, jitter, and loss
@@ -27,19 +27,43 @@ public sealed class MeasurementEngine
     private readonly Queue<RttSample> _window = [];
 
     /// <summary>
-    /// Creates an engine configured from the supplied options. Reads
-    /// <see cref="LinkPulseOptions.WindowSize"/>, <see cref="LinkPulseOptions.PingTimeoutMs"/>,
-    /// and <see cref="LinkPulseOptions.JitterSmoothingFactor"/>; the other knobs are not used by
-    /// the measurement core.
+    /// Creates an engine from the three measurement parameters it actually depends on, failing fast
+    /// on values that would make the metrics meaningless. This is the honest dependency surface; the
+    /// <see cref="MeasurementEngine(LinkPulseOptions)"/> overload is the convenience path for callers
+    /// that already hold a full options record.
     /// </summary>
-    /// <param name="options">Measurement configuration. Assumed already bounds-checked (#2/#4/#5).</param>
-    /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
-    public MeasurementEngine(LinkPulseOptions options)
+    /// <param name="windowSize">Rolling sample count; must be at least 1.</param>
+    /// <param name="pingTimeoutMs">Loss/sanity-guard threshold in milliseconds; must be non-negative.</param>
+    /// <param name="jitterSmoothingFactor">
+    /// The RFC 3550 gain denominator <c>G</c>; must be greater than zero (it divides the jitter
+    /// recurrence, so zero would yield a non-finite jitter).
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">A parameter is outside its required range.</exception>
+    public MeasurementEngine(int windowSize, double pingTimeoutMs, double jitterSmoothingFactor)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        _windowSize = options.WindowSize;
-        _pingTimeoutMs = options.PingTimeoutMs;
-        _jitterSmoothingFactor = options.JitterSmoothingFactor;
+        ArgumentOutOfRangeException.ThrowIfLessThan(windowSize, 1);
+        ArgumentOutOfRangeException.ThrowIfNegative(pingTimeoutMs);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(jitterSmoothingFactor);
+        _windowSize = windowSize;
+        _pingTimeoutMs = pingTimeoutMs;
+        _jitterSmoothingFactor = jitterSmoothingFactor;
+    }
+
+    /// <summary>
+    /// Creates an engine from a <see cref="LinkPulseOptions"/>, reading only
+    /// <see cref="LinkPulseOptions.WindowSize"/>, <see cref="LinkPulseOptions.PingTimeoutMs"/>, and
+    /// <see cref="LinkPulseOptions.JitterSmoothingFactor"/>; the other knobs are not used by the
+    /// measurement core. Applies the same fail-fast bounds as the primary constructor.
+    /// </summary>
+    /// <param name="options">Measurement configuration.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">An option is outside its required range.</exception>
+    public MeasurementEngine(LinkPulseOptions options)
+        : this(
+            (options ?? throw new ArgumentNullException(nameof(options))).WindowSize,
+            options.PingTimeoutMs,
+            options.JitterSmoothingFactor)
+    {
     }
 
     /// <summary>
@@ -62,17 +86,22 @@ public sealed class MeasurementEngine
     /// Records that a ping was sent. The send-stamp is held until the matching echo arrives or the
     /// ping times out via <see cref="ExpireOutstanding"/>.
     /// </summary>
-    /// <param name="seq">The monotonic sequence number of the ping.</param>
+    /// <param name="seq">
+    /// The sequence number of the ping. Assumed monotonic (never reused while outstanding); calling
+    /// this twice with the same <paramref name="seq"/> overwrites the earlier send-stamp, so the
+    /// earlier ping is neither resolved nor counted as loss.
+    /// </param>
     /// <param name="sentAtMs">The client-clock send time, in milliseconds.</param>
     public void RecordPing(long seq, double sentAtMs) => _outstanding[seq] = sentAtMs;
 
     /// <summary>
     /// Records a received echo, matched to its ping <em>by sequence number</em> so out-of-order
-    /// arrival cannot corrupt RTT pairing (&#167;3.6). An echo whose seq is no longer outstanding
-    /// &#8212; a late echo for an already-timed-out ping, a duplicate, or an unknown seq &#8212; is
-    /// discarded: it is not counted as received and never feeds RTT or jitter, and any loss was
-    /// already attributed when the ping timed out. A matched sample that is negative or exceeds the
-    /// ping timeout is discarded as loss by the sanity guard (&#167;3.2).
+    /// arrival cannot corrupt RTT pairing (&#167;3.6). An echo whose seq is no longer outstanding is
+    /// discarded: it is not counted as received and never feeds RTT or jitter. This covers three
+    /// cases &#8212; a late echo for an already-timed-out ping (whose loss was attributed when it
+    /// timed out), a duplicate of an already-resolved ping, and an echo for an unknown seq (for
+    /// which nothing was ever recorded). A matched sample that is negative or exceeds the ping
+    /// timeout is discarded as loss by the sanity guard (&#167;3.2).
     /// </summary>
     /// <param name="seq">The sequence number echoed back by the server.</param>
     /// <param name="receivedAtMs">The client-clock receive time, in milliseconds.</param>

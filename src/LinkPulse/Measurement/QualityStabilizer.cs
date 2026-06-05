@@ -1,6 +1,6 @@
 using LinkPulse.Abstractions;
 
-namespace LinkPulse;
+namespace LinkPulse.Measurement;
 
 /// <summary>
 /// Applies hysteresis to a stream of measured quality ratings so the displayed rating does not
