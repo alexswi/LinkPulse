@@ -5,4 +5,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/LinkPulse.Tests/LinkPulse.Tests.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/LinkPulse.Demo/LinkPulse.Demo/LinkPulse.Demo.csproj" />
+    <Project Path="samples/LinkPulse.Demo/LinkPulse.Demo.Client/LinkPulse.Demo.Client.csproj" />
+  </Folder>
 </Solution>

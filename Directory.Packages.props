@@ -19,4 +19,14 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
+  <!--
+    Sample-only packages, used by the Blazor Auto demo host under samples/. These are the standard
+    Blazor WebAssembly hosting/runtime packages the Web App template requires; they are not referenced
+    by the shipped LinkPulse library, which stays framework-only.
+  -->
+  <ItemGroup Label="Sample">
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.8" />
+  </ItemGroup>
+
 </Project>

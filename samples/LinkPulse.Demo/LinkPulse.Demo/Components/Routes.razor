@@ -1,0 +1,21 @@
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(Client._Imports).Assembly }" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated ?? false)
+                {
+                    <h1>Not authorized</h1>
+                    <p role="alert">You are signed in but do not have access to this page.</p>
+                }
+                else
+                {
+                    <h1>Sign in required</h1>
+                    <p role="alert">
+                        This page requires you to <a href="/account/login">sign in</a>.
+                    </p>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

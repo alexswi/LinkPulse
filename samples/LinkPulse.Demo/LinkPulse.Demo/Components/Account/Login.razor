@@ -1,0 +1,26 @@
+@page "/account/login"
+
+<PageTitle>Sign in</PageTitle>
+
+<h1>Operator sign-in</h1>
+<p>
+    Demo only — there is no password. Signing in grants the
+    <code>@DemoAuth.OperatorRole</code> role, which the <code>@DemoAuth.ViewerPolicy</code> policy
+    requires to view the dashboard.
+</p>
+
+<form method="post" action="/account/login">
+    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+    <div class="mb-3">
+        <label class="form-label">
+            User name
+            <input class="form-control" name="username" value="operator" />
+        </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Sign in</button>
+</form>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+}

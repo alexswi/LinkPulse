@@ -283,11 +283,46 @@ public sealed class ProbeEndpointIntegrationTests
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
     }
 
-    private static Task SendSnapshotAsync(WebSocket socket, Guid clientId, Guid sessionId)
+    [Fact]
+    public async Task A_client_reconnecting_in_the_wasm_phase_updates_one_entry_in_place()
+    {
+        // The Blazor Auto transition end to end: a browser reports in its Server phase, drops the socket,
+        // then reconnects with a new session in its WebAssembly phase under the SAME ClientId. The probe
+        // must fold both into one registry entry whose phase follows the client across the boundary — the
+        // measurement-continuity guarantee, exercised over the real WebSocket endpoint.
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using (var serverPhase = await ConnectAsync(host))
+        {
+            await SendSnapshotAsync(serverPhase, clientId, Guid.NewGuid(), ClientPhase.Server);
+            await SpinUntilAsync(() =>
+                registry.TryGetConnection(clientId, out var v) && v!.Phase == ClientPhase.Server ? v : null);
+            await serverPhase.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+        }
+
+        using (var wasmPhase = await ConnectAsync(host))
+        {
+            await SendSnapshotAsync(wasmPhase, clientId, Guid.NewGuid(), ClientPhase.Wasm);
+
+            var view = await SpinUntilAsync(() =>
+                registry.TryGetConnection(clientId, out var v) && v!.Phase == ClientPhase.Wasm ? v : null);
+
+            Assert.NotNull(view);
+            Assert.Equal(ClientPhase.Wasm, view!.Phase);
+            await wasmPhase.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+        }
+
+        // One client throughout — the reconnect updated the existing entry rather than creating a second.
+        Assert.Equal(1, registry.Count);
+    }
+
+    private static Task SendSnapshotAsync(WebSocket socket, Guid clientId, Guid sessionId, ClientPhase phase = ClientPhase.Server)
     {
         ProbeFrame frame = SnapshotFrame.FromSnapshot(clientId, sessionId, new MetricSnapshot
         {
-            Phase = ClientPhase.Server,
+            Phase = phase,
             RttMin = 10,
             RttAvg = 12,
             RttMax = 15,

@@ -5,6 +5,31 @@
     <RootNamespace>LinkPulse</RootNamespace>
   </PropertyGroup>
 
+  <!-- NuGet packaging metadata (v1 spec packaging section). The package ships only the RCL; it carries
+       no third-party runtime dependencies, since its entire surface comes from the shared framework via
+       the FrameworkReference below (a framework reference is not a package dependency). -->
+  <PropertyGroup>
+    <PackageId>LinkPulse</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Alexandre Swioklo</Authors>
+    <Description>Real-time connection-quality monitoring for Blazor: a client badge that measures RTT, jitter, and packet loss over a dedicated WebSocket probe (consistent across the Auto Server/WebAssembly transition), plus an in-memory server registry and a live operator dashboard. Zero third-party dependencies.</Description>
+    <PackageTags>blazor;aspnetcore;connection;network;latency;rtt;jitter;monitoring;websocket;dashboard</PackageTags>
+    <PackageProjectUrl>https://github.com/alexswi/LinkPulse</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/alexswi/LinkPulse</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) 2026 Alexandre Swioklo</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ship the repository README as the package's NuGet.org landing page. -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>

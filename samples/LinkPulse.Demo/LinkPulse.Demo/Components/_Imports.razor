@@ -1,0 +1,20 @@
+﻿@using System.Net.Http
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using LinkPulseDemo
+@using LinkPulseDemo.Authentication
+@using LinkPulseDemo.Client
+@using LinkPulseDemo.Components
+@using LinkPulseDemo.Components.Layout
+@* global:: is required: the RCL exposes a type named LinkPulse in the LinkPulse namespace, so an
+   unqualified "LinkPulse.Server" would bind to the type, not the namespace. *@
+@using global::LinkPulse
+@using global::LinkPulse.Abstractions
+@using global::LinkPulse.Server

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore LinkPulse.slnx
+
+      # Warnings are errors (Directory.Build.props), so a build that succeeds is also a style/doc gate.
+      - name: Build
+        run: dotnet build LinkPulse.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test LinkPulse.slnx -c Release --no-build --verbosity normal
+
+      # Pack only the shipped library. --no-build reuses the Release output verified above.
+      - name: Pack
+        run: dotnet pack src/LinkPulse/LinkPulse.csproj -c Release --no-build -o artifacts
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/*.nupkg
