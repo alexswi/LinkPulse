@@ -13,6 +13,8 @@ namespace LinkPulse.Rendering;
 /// is reported separately as an <see cref="Outages"/> x-position, so gaps stay visible rather than
 /// being bridged by a misleading straight segment. The y-axis is inverted in the SVG convention
 /// (larger RTT sits higher, i.e. a smaller y), and the value range is auto-scaled to the box.
+/// The coordinate strings are an internal contract populated solely by <see cref="Build"/> (the
+/// constructor is private), so they are always valid, culture-invariant SVG coordinates.
 /// </remarks>
 internal sealed record SparklineGeometry
 {
@@ -34,7 +36,7 @@ internal sealed record SparklineGeometry
     /// </summary>
     public IReadOnlyList<string> Segments { get; }
 
-    /// <summary>The x-coordinates of lost samples, for drawing outage markers along the baseline.</summary>
+    /// <summary>The x-coordinates of lost samples, for drawing vertical outage markers spanning the sparkline height.</summary>
     public IReadOnlyList<string> Outages { get; }
 
     /// <summary>The x of the most recent clean sample (the "current" dot), or <see langword="null"/> when none.</summary>

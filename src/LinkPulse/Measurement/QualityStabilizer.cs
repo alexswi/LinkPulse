@@ -10,9 +10,9 @@ namespace LinkPulse.Measurement;
 /// <remarks>
 /// This filter handles only measured ratings. <see cref="QualityRating.Disconnected"/> is a
 /// connection state driven by socket close / ping timeout, wired in the client component (#4);
-/// on disconnect that component shows <see cref="QualityRating.Disconnected"/> directly and calls
-/// <see cref="Reset"/>, so the first measured rating after reconnect is adopted at once rather
-/// than waiting out the hysteresis streak.
+/// while down that component shows <see cref="QualityRating.Disconnected"/> directly, and calls
+/// <see cref="Reset"/> on the next (re)connect, so the first measured rating after reconnect is
+/// adopted at once rather than waiting out the hysteresis streak.
 /// </remarks>
 public sealed class QualityStabilizer
 {

@@ -115,14 +115,23 @@ public sealed partial class LinkPulse : IAsyncDisposable
         }
 
         _selfRef = DotNetObjectReference.Create(this);
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
-        if (_disposed)
+        try
         {
-            return; // disposed mid-import
-        }
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+            if (_disposed)
+            {
+                return; // disposed mid-import
+            }
 
-        _probe = await _module.InvokeAsync<IJSObjectReference>(
-            "createProbe", _selfRef, ProbePath, PingIntervalMs, HiddenTabPingIntervalMs);
+            _probe = await _module.InvokeAsync<IJSObjectReference>(
+                "createProbe", _selfRef, ProbePath, PingIntervalMs, HiddenTabPingIntervalMs);
+        }
+        catch (JSException)
+        {
+            // The module failed to load or initialise (network error, blocked dynamic import, …).
+            // A telemetry widget must not take down its host page, so stay in the disconnected
+            // state and simply do not measure.
+        }
     }
 
     /// <summary>JS callback: the probe socket (re)connected. Adopts the identity and re-arms measurement.</summary>
@@ -132,8 +141,17 @@ public sealed partial class LinkPulse : IAsyncDisposable
     [JSInvokable]
     public void OnConnected(string clientId, string sessionId, double nowMs)
     {
+        // These ids are always freshly-minted UUID strings from the JS module, so the parse cannot
+        // realistically fail; the guard merely keeps a malformed value from throwing, leaving an
+        // empty Guid rather than crashing the connect.
         _ = Guid.TryParse(clientId, out _clientId);
         _ = Guid.TryParse(sessionId, out _sessionId);
+
+        // A new connection is a new measurement session (fresh SessionId): start the engine clean so
+        // the dropped connection's stale window and still-outstanding pings cannot bleed into — and
+        // be counted as loss against — the new one.
+        _engine = new MeasurementEngine(WindowSize, PingTimeoutMs, JitterSmoothingFactor);
+
         _connected = true;
         _nowMs = nowMs;
         _connectedSinceMs = nowMs;
@@ -208,9 +226,11 @@ public sealed partial class LinkPulse : IAsyncDisposable
         {
             await _probe.InvokeVoidAsync("send", json);
         }
-        catch (JSDisconnectedException)
+        catch (JSException)
         {
-            // Circuit/runtime torn down; nothing to report to.
+            // Best-effort telemetry. A torn-down circuit (JSDisconnectedException) or a transient
+            // interop fault should drop this one snapshot — never propagate out of this JSInvokable
+            // callback and fault the circuit, which would end the user's whole session.
         }
     }
 
@@ -231,9 +251,9 @@ public sealed partial class LinkPulse : IAsyncDisposable
                 await _module.DisposeAsync();
             }
         }
-        catch (JSDisconnectedException)
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException)
         {
-            // The circuit is already gone; the JS side is disposed with it.
+            // The circuit/renderer is already being torn down; the JS side is disposed with it.
         }
 
         _selfRef?.Dispose();

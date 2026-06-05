@@ -16,7 +16,7 @@
             <button type="button"
                     class="lp-badge"
                     @onclick="Toggle"
-                    aria-expanded="@showDetails"
+                    aria-expanded="@(showDetails ? "true" : "false")"
                     aria-label="Connection quality: @label, round-trip @currentRtt">
                 <span class="lp-dot" aria-hidden="true"></span>
                 <span class="lp-label">@label</span>

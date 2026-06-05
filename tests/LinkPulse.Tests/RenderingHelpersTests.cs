@@ -95,6 +95,69 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void A_single_clean_sample_sits_at_x_zero_on_the_mid_line()
+    {
+        // count == 1: the x step is 0 and the value range is degenerate (span == 0), so the point
+        // lands on the mid-line. This is the first-tick-after-connect case the component renders.
+        var geometry = SparklineGeometry.Build([new RttSample(1, 10)], 100, 30);
+
+        Assert.Equal(["0,15"], geometry.Segments);
+        Assert.Empty(geometry.Outages);
+        Assert.Equal("0", geometry.LatestX);
+        Assert.Equal("15", geometry.LatestY);
+    }
+
+    [Fact]
+    public void A_single_lost_sample_is_one_outage_with_no_line()
+    {
+        var geometry = SparklineGeometry.Build([new RttSample(1, null)], 100, 30);
+
+        Assert.Empty(geometry.Segments);
+        Assert.Equal(["0"], geometry.Outages);
+        Assert.Null(geometry.LatestX);
+        Assert.Null(geometry.LatestY);
+    }
+
+    [Fact]
+    public void A_leading_loss_marks_an_outage_before_the_line_starts()
+    {
+        var geometry = SparklineGeometry.Build(
+            [new RttSample(1, null), new RttSample(2, 10), new RttSample(3, 20)], 100, 20);
+
+        Assert.Equal(["0"], geometry.Outages);
+        Assert.Equal(["50,20 100,0"], geometry.Segments);
+        Assert.Equal("100", geometry.LatestX);
+    }
+
+    [Fact]
+    public void A_trailing_loss_keeps_the_current_dot_on_the_last_clean_sample()
+    {
+        // The "current" dot must track the most recent CLEAN sample, never a trailing outage.
+        var geometry = SparklineGeometry.Build(
+            [new RttSample(1, 10), new RttSample(2, 20), new RttSample(3, null)], 100, 20);
+
+        Assert.Equal(["0,20 50,0"], geometry.Segments);
+        Assert.Equal(["100"], geometry.Outages);
+        Assert.Equal("50", geometry.LatestX);
+        Assert.Equal("0", geometry.LatestY);
+    }
+
+    [Fact]
+    public void Coordinates_are_rounded_and_use_an_invariant_decimal_point()
+    {
+        // Four samples over width 100 give a non-integer x step (100/3 = 33.33…), exercising the
+        // 2-dp rounding and the invariant-culture '.' separator (never a locale comma).
+        var geometry = SparklineGeometry.Build(
+            [new RttSample(1, 0), new RttSample(2, 10), new RttSample(3, 20), new RttSample(4, 30)],
+            100, 30);
+
+        var points = Assert.Single(geometry.Segments);
+        Assert.Contains("33.33", points);
+        Assert.Contains("66.67", points);
+        Assert.DoesNotContain(",,", points); // no malformed/empty coordinate
+    }
+
+    [Fact]
     public void Build_rejects_null_samples_and_non_positive_dimensions()
     {
         Assert.Throws<ArgumentNullException>(() => SparklineGeometry.Build(null!, 100, 30));

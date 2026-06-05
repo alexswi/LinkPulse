@@ -11,6 +11,33 @@
 
 const CLIENT_ID_KEY = "linkpulse.clientId";
 
+// A UUID that works everywhere. crypto.randomUUID() is the happy path but is only defined in secure
+// contexts (HTTPS / localhost), so plain-http intranet hosting would throw; fall back to an RFC 4122
+// v4 built from crypto.getRandomValues (available in insecure contexts too), then to Math.random as
+// a last resort. This never throws, so identity is always available.
+function newId() {
+    try {
+        if (typeof crypto !== "undefined" && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+    } catch {
+        // secure-context-only; fall through
+    }
+
+    const bytes = new Uint8Array(16);
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        crypto.getRandomValues(bytes);
+    } else {
+        for (let i = 0; i < 16; i++) {
+            bytes[i] = Math.floor(Math.random() * 256);
+        }
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0"));
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+}
+
 // Stable per-browser id (spec §4): minted once, persisted, survives reloads and the Server→WASM
 // transition. Falls back to an ephemeral id when storage is unavailable (private mode), so
 // measurement still works — only cross-reload grouping is lost.
@@ -18,12 +45,12 @@ function getClientId() {
     try {
         let id = localStorage.getItem(CLIENT_ID_KEY);
         if (!id) {
-            id = crypto.randomUUID();
+            id = newId();
             localStorage.setItem(CLIENT_ID_KEY, id);
         }
         return id;
     } catch {
-        return crypto.randomUUID();
+        return newId();
     }
 }
 
@@ -106,7 +133,7 @@ export function createProbe(dotNet, probePath, pingIntervalMs, hiddenTabPingInte
             }
             connected = true;
             reconnectAttempt = 0;
-            sessionId = crypto.randomUUID(); // fresh per connection (spec §4)
+            sessionId = newId(); // fresh per connection (spec §4)
             notify("OnConnected", clientId, sessionId, performance.now());
         };
 
