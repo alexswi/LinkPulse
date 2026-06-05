@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LinkPulse/LinkPulse.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LinkPulse.Tests/LinkPulse.Tests.csproj" />
+  </Folder>
+</Solution>
