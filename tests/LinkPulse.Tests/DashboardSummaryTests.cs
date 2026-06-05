@@ -16,18 +16,11 @@ public sealed class DashboardSummaryTests
         ClientId = Guid.NewGuid(),
         Rating = rating,
         IsStale = stale,
-        ActiveSessionCount = stale ? 0 : 1,
+        ActiveSessions = [],
         Phase = ClientPhase.Server,
         FirstSeenUtc = T0,
         LastSeenUtc = T0,
-        View = new ConnectionView
-        {
-            ClientId = Guid.NewGuid(),
-            ActiveSessions = [],
-            FirstSeenUtc = T0,
-            LastSeenUtc = T0,
-            History = [],
-        },
+        History = [],
     };
 
     [Fact]

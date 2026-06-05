@@ -89,7 +89,7 @@
                                     <code>@ShortId(row.ClientId)…</code>
                                 </button>
                             </td>
-                            <td class="lpd-num">@row.ActiveSessionCount</td>
+                            <td class="lpd-num">@row.ActiveSessions.Count</td>
                             <td>@(row.Phase == ClientPhase.Wasm ? "WASM" : "Server")</td>
                             <td class="lpd-num">@FormatMs(row.RttAvg)</td>
                             <td class="lpd-num">@FormatMs(row.Jitter)</td>
@@ -130,7 +130,7 @@
         QualityRating.Disconnected, QualityRating.Poor, QualityRating.Fair, QualityRating.Good, QualityRating.Excellent,
     ];
 
-    // The four measured ratings offered in the quality filter (Disconnected is selectable too).
+    // The five selectable quality ratings in the filter (the four measured tiers plus Disconnected).
     private static readonly QualityRating[] FilterableRatings =
     [
         QualityRating.Excellent, QualityRating.Good, QualityRating.Fair, QualityRating.Poor, QualityRating.Disconnected,
@@ -153,7 +153,7 @@
         <div class="lpd-detail-spark">
             <h4>RTT history</h4>
             @{
-                var spark = SparklineGeometry.Build(ServerHistory.ToSamples(row.View.History), SparklineWidth, SparklineHeight);
+                var spark = SparklineGeometry.Build(ServerHistory.ToSamples(row.History), SparklineWidth, SparklineHeight);
             }
             <svg class="lpd-spark" viewBox="0 0 240 40" preserveAspectRatio="none" role="img" aria-label="Recorded round-trip history">
                 @foreach (var outage in spark.Outages)
@@ -174,16 +174,16 @@
             <div><dt>First seen</dt><dd>@FormatAge(row.FirstSeenUtc)</dd></div>
             <div><dt>Last seen</dt><dd>@FormatAge(row.LastSeenUtc)</dd></div>
             <div>
-                <dt>Sessions (@row.ActiveSessionCount)</dt>
+                <dt>Sessions (@row.ActiveSessions.Count)</dt>
                 <dd>
-                    @if (row.View.ActiveSessions.Count == 0)
+                    @if (row.ActiveSessions.Count == 0)
                     {
                         <span class="lpd-muted">none active</span>
                     }
                     else
                     {
                         <ul class="lpd-sessions">
-                            @foreach (var session in row.View.ActiveSessions)
+                            @foreach (var session in row.ActiveSessions)
                             {
                                 <li><code>@session</code></li>
                             }
@@ -193,7 +193,7 @@
             </div>
             @if (ShowUserAgent)
             {
-                <div><dt>User-agent</dt><dd>@(string.IsNullOrEmpty(row.View.UserAgent) ? "—" : row.View.UserAgent)</dd></div>
+                <div><dt>User-agent</dt><dd>@(string.IsNullOrEmpty(row.UserAgent) ? "—" : row.UserAgent)</dd></div>
             }
         </dl>
     </div>;

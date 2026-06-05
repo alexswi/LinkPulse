@@ -8,7 +8,7 @@ namespace LinkPulse.Server;
 /// </summary>
 internal enum LivenessFilter
 {
-    /// <summary>Show both live and stale connections.</summary>
+    /// <summary>Show both live and stale connections. Listed first so <c>default(DashboardFilter)</c> is unfiltered.</summary>
     All,
 
     /// <summary>Show only connections that are not stale.</summary>

@@ -50,7 +50,7 @@ internal static class DashboardProjection
         {
             DashboardColumn.Quality => Sort(rows, r => (int)r.Rating, descending),
             DashboardColumn.ClientId => Sort(rows, r => r.ClientId, descending),
-            DashboardColumn.Sessions => Sort(rows, r => r.ActiveSessionCount, descending),
+            DashboardColumn.Sessions => Sort(rows, r => r.ActiveSessions.Count, descending),
             DashboardColumn.Phase => Sort(rows, r => (int)r.Phase, descending),
             DashboardColumn.Rtt => Sort(rows, r => r.RttAvg ?? double.MaxValue, descending),
             DashboardColumn.Jitter => Sort(rows, r => r.Jitter ?? double.MaxValue, descending),

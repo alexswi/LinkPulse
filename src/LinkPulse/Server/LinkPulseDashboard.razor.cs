@@ -22,10 +22,11 @@ namespace LinkPulse.Server;
 /// places it on its own authorized route or page.
 /// </para>
 /// <para>
-/// <b>Live updates (&#167;10).</b> It subscribes to <see cref="LinkPulseRegistry.Changed"/> and
-/// re-reads the registry at most once per second, coalescing bursts so a thousand reporting clients
-/// cannot thrash the UI. The displayed last-seen/uptime ages tick each second; the registry itself is
-/// only re-queried when something actually changed.
+/// <b>Live updates (&#167;10).</b> It subscribes to <see cref="LinkPulseRegistry.Changed"/> and, in
+/// response to those notifications, re-reads the registry at most once per second &#8212; coalescing
+/// bursts so a thousand reporting clients cannot thrash the UI. The displayed last-seen/uptime ages
+/// tick each second; the registry is only re-queried when something actually changed. (User-initiated
+/// sort, filter, and remove actions rebuild on demand.)
 /// </para>
 /// </remarks>
 public sealed partial class LinkPulseDashboard : IAsyncDisposable
@@ -89,7 +90,18 @@ public sealed partial class LinkPulseDashboard : IAsyncDisposable
     {
         Registry.Changed += OnRegistryChanged;
         Rebuild(); // render the current snapshot immediately (and during prerender)
-        _timer = Time.CreateTimer(OnTick, state: null, RefreshInterval, RefreshInterval);
+    }
+
+    /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Start the 1 Hz live-update timer only once the component is interactive — never during static
+        // prerender, whose instance is created and disposed without ever ticking. This mirrors the
+        // client component, which likewise defers its live machinery to the first render.
+        if (firstRender && !_disposed)
+        {
+            _timer = Time.CreateTimer(OnTick, state: null, RefreshInterval, RefreshInterval);
+        }
     }
 
     // Raised on the registry's thread (a probe handler or the sweep service). Just flag dirty — the
@@ -103,26 +115,42 @@ public sealed partial class LinkPulseDashboard : IAsyncDisposable
             return;
         }
 
-        // Marshal onto the renderer's context: StateHasChanged and the registry read must not run on
-        // the timer's thread-pool thread.
-        _ = InvokeAsync(() =>
+        _ = RefreshAsync(); // fire-and-forget is intentional; RefreshAsync never throws
+
+        async Task RefreshAsync()
         {
-            if (_disposed)
+            try
             {
-                return;
-            }
+                // Marshal onto the renderer's context: StateHasChanged and the registry read must not
+                // run on the timer's thread-pool thread.
+                await InvokeAsync(() =>
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
 
-            _now = Time.GetUtcNow();
-            if (_dirty)
+                    _now = Time.GetUtcNow();
+                    if (_dirty)
+                    {
+                        // Only re-query/re-project the table when something actually changed (no
+                        // full-table polling); otherwise we just refresh the ticking ages below.
+                        _dirty = false;
+                        Rebuild();
+                    }
+
+                    StateHasChanged();
+                });
+            }
+            catch (Exception)
             {
-                // Only re-query/re-project the table when something actually changed (no full-table
-                // polling); otherwise we just refresh the ticking ages below.
-                _dirty = false;
-                Rebuild();
+                // A telemetry widget must never fault its host circuit: a torn-down renderer during
+                // disposal, or a transient projection fault, skips this one refresh rather than letting
+                // an unobserved exception tear down the operator's dashboard. The next tick re-reads a
+                // fresh snapshot. (v1 ships without a logger; this is the call site that must log once
+                // the deferred logger lands.)
             }
-
-            StateHasChanged();
-        });
+        }
     }
 
     private void Rebuild()
@@ -173,7 +201,16 @@ public sealed partial class LinkPulseDashboard : IAsyncDisposable
             _expanded = null;
         }
 
-        Rebuild(); // reflect the removal at once (the Changed event also fires, coalesced into the next tick)
+        try
+        {
+            // Reflect the removal at once; on a projection fault, don't fault the host circuit — the
+            // Changed event from Remove coalesces into the next tick and re-renders the table anyway.
+            Rebuild();
+        }
+        catch (Exception)
+        {
+            // See OnTick: a telemetry widget must never tear down the operator's circuit.
+        }
     }
 
     private async Task CopyClientIdAsync(Guid clientId)

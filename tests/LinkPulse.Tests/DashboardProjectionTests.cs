@@ -137,6 +137,59 @@ public sealed class DashboardProjectionTests
     }
 
     [Fact]
+    public void A_sessionless_but_not_yet_stale_entry_keeps_its_last_known_rating()
+    {
+        // Zero active sessions, not stale, with a prior snapshot: it must keep its measured rating
+        // (greyed last-known, §5.2), NOT flip to Disconnected. This is the one nuance the §6/§5.2 docs
+        // single out, so it is pinned explicitly.
+        var view = View(rttAvg: 20, sessions: 0, stale: false);
+
+        var row = Assert.Single(Project([view]));
+
+        Assert.Equal(QualityRating.Excellent, row.Rating);
+    }
+
+    [Fact]
+    public void Sorting_by_last_seen_orders_by_age()
+    {
+        var older = View(rttAvg: 20, lastSeen: T0.AddSeconds(-50)); // age 50s at T0
+        var newer = View(rttAvg: 20, lastSeen: T0.AddSeconds(-10)); // age 10s at T0
+
+        // Ascending age (default direction): youngest age first.
+        var ascending = Project([older, newer], sort: DashboardColumn.LastSeen).Select(r => r.ClientId);
+        Assert.Equal(new[] { newer.ClientId, older.ClientId }, ascending);
+
+        // Descending age: oldest-seen first (what an operator hunting for problems expects).
+        var descending = Project([older, newer], sort: DashboardColumn.LastSeen, descending: true).Select(r => r.ClientId);
+        Assert.Equal(new[] { older.ClientId, newer.ClientId }, descending);
+    }
+
+    [Fact]
+    public void Sorting_by_uptime_descending_lists_the_longest_lived_first()
+    {
+        var longLived = View(rttAvg: 20, firstSeen: T0.AddSeconds(-100)); // uptime 100s
+        var shortLived = View(rttAvg: 20, firstSeen: T0.AddSeconds(-10)); // uptime 10s
+
+        var order = Project([shortLived, longLived], sort: DashboardColumn.Uptime, descending: true).Select(r => r.ClientId);
+
+        Assert.Equal(new[] { longLived.ClientId, shortLived.ClientId }, order);
+    }
+
+    [Fact]
+    public void The_quality_and_liveness_filters_combine_as_an_intersection()
+    {
+        var livePoor = View(rttAvg: 400);            // Poor, live
+        var staleExcellent = View(rttAvg: 20, stale: true); // stale ⇒ rated Disconnected
+
+        // Poor AND Stale: the Poor row is live (excluded) and the stale row is not Poor (excluded).
+        Assert.Empty(Project([livePoor, staleExcellent], new DashboardFilter(QualityRating.Poor, LivenessFilter.Stale)));
+
+        // Poor AND Live keeps exactly the live Poor row — proving the predicates AND rather than OR.
+        var liveOnly = Project([livePoor, staleExcellent], new DashboardFilter(QualityRating.Poor, LivenessFilter.Live));
+        Assert.Equal(livePoor.ClientId, Assert.Single(liveOnly).ClientId);
+    }
+
+    [Fact]
     public void Projecting_an_empty_registry_yields_no_rows()
     {
         Assert.Empty(Project([]));

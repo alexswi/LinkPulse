@@ -93,7 +93,15 @@ public static class LinkPulseEndpointRouteBuilderExtensions
             return null;
         }
 
-        return value.Length <= MaxUserAgentLength ? value : value[..MaxUserAgentLength];
+        if (value.Length <= MaxUserAgentLength)
+        {
+            return value;
+        }
+
+        // Trim back off a lone high surrogate if the cap happens to fall between a surrogate pair, so
+        // the stored value never ends with half a code point.
+        var end = char.IsHighSurrogate(value[MaxUserAgentLength - 1]) ? MaxUserAgentLength - 1 : MaxUserAgentLength;
+        return value[..end];
     }
 
     private static bool IsAllowedOrigin(HttpRequest request)

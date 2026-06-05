@@ -27,7 +27,7 @@ internal static class ProbeConnectionHandler
     /// </summary>
     /// <param name="socket">The accepted probe socket.</param>
     /// <param name="registry">The registry to record validated snapshots into.</param>
-    /// <param name="timeProvider">The clock used for the §11 ping/snapshot throttle and snapshot timestamps.</param>
+    /// <param name="timeProvider">The clock used for the &#167;11 ping/snapshot throttle and snapshot timestamps.</param>
     /// <param name="userAgent">The connection's already-bounded <c>User-Agent</c> (&#167;10), or <see langword="null"/>.</param>
     /// <param name="cancellationToken">Fires when the request is aborted or the server is shutting down.</param>
     public static async Task RunAsync(

@@ -3,9 +3,9 @@ using LinkPulse.Measurement;
 namespace LinkPulse.Server;
 
 /// <summary>
-/// Projects a connection's stored history (v1 spec, &#167;9) onto the sample sequence the
-/// <c>SparklineGeometry</c> renderer draws (&#167;10), so the dashboard reuses the exact same
-/// sparkline renderer as the client component. Pure, so it is unit-testable in isolation.
+/// Projects a connection's stored history (v1 spec, &#167;9) onto the sample sequence the &#167;8
+/// <c>SparklineGeometry</c> renderer draws, so the dashboard (&#167;10) reuses the exact same sparkline
+/// renderer as the client component. Pure, so it is unit-testable in isolation.
 /// </summary>
 internal static class ServerHistory
 {
