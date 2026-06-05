@@ -5,16 +5,15 @@
   </PropertyGroup>
 
   <!--
-    LinkPulse ships with zero third-party dependencies. The only library
-    reference (Microsoft.AspNetCore.Components.Web) is first-party framework.
-    Everything below this comment is test-only tooling.
+    LinkPulse ships with zero third-party dependencies. The library pulls the
+    entire framework surface it needs (Blazor components plus the server hosting,
+    routing, HTTP, and WebSocket types) from the Microsoft.AspNetCore.App shared
+    framework via a FrameworkReference, so there are no package versions to manage
+    for the product itself. Everything below is test-only tooling.
   -->
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.8" />
-  </ItemGroup>
-
   <ItemGroup Label="Test">
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.8" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
