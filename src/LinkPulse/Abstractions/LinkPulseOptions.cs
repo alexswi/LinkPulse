@@ -46,6 +46,12 @@ public sealed record LinkPulseOptions
     /// <summary>How long a stale registry entry is retained, in milliseconds, before removal (default 2 h).</summary>
     public int StaleRetentionMs { get; init; } = 7_200_000;
 
+    /// <summary>
+    /// Maximum number of concurrent probe sessions accepted from a single client IP (&#167;11 abuse
+    /// bound). Upgrade requests beyond this are rejected so one host cannot exhaust server resources.
+    /// </summary>
+    public int MaxConcurrentSessionsPerIp { get; init; } = 20;
+
     /// <summary>How the client component renders.</summary>
     public DisplayMode Display { get; init; } = DisplayMode.Badge;
 

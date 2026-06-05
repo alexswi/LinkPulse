@@ -10,7 +10,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <!-- The shared framework supplies both the Blazor component types (Microsoft.AspNetCore.Components.*)
+         the client component needs and the server hosting types (routing, HTTP, WebSockets, DI, hosting)
+         the §9/§11/§12 probe endpoint, registry, and DI wiring need. A single FrameworkReference keeps
+         the whole library dependency-free (the shipped surface is first-party framework only) and lets it
+         ship both halves from one RCL, exactly as the spec's packaging section requires. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

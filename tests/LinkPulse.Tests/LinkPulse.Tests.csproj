@@ -5,8 +5,15 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
+  <!-- The integration tests host the probe endpoint in an in-memory TestServer, which needs the
+       ASP.NET Core shared framework (the product library pulls it in too, via FrameworkReference). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
