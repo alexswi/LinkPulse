@@ -14,8 +14,16 @@ namespace LinkPulse.Server;
 /// accepting the upgrade.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Requires the WebSocket middleware (<c>app.UseWebSockets()</c>) and the services registered by
 /// <see cref="LinkPulseServiceCollectionExtensions.AddLinkPulse(IServiceCollection)"/>.
+/// </para>
+/// <para>
+/// Behind a TLS-terminating reverse proxy, enable forwarded-headers processing
+/// (<c>app.UseForwardedHeaders()</c>) before this endpoint so the origin check sees the external
+/// scheme/host and the per-IP cap sees the real client address rather than the proxy's &#8212;
+/// otherwise legitimate <c>https</c> browsers may be rejected and all clients may share one IP bucket.
+/// </para>
 /// </remarks>
 public static class LinkPulseEndpointRouteBuilderExtensions
 {

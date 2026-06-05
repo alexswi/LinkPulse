@@ -157,6 +157,41 @@ public sealed class LinkPulseRegistryTests
     }
 
     [Fact]
+    public void New_clients_beyond_the_cap_are_dropped_but_tracked_clients_still_update()
+    {
+        var registry = new LinkPulseRegistry(new LinkPulseOptions { MaxTrackedClients = 2 });
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var third = Guid.NewGuid();
+
+        registry.RecordSnapshot(first, Guid.NewGuid(), Snapshot(), T0);
+        registry.RecordSnapshot(second, Guid.NewGuid(), Snapshot(), T0);
+        registry.RecordSnapshot(third, Guid.NewGuid(), Snapshot(), T0); // at cap — dropped
+
+        Assert.Equal(2, registry.Count);
+        Assert.False(registry.TryGetConnection(third, out _));
+
+        // An already-tracked client is never blocked by the cap.
+        registry.RecordSnapshot(first, Guid.NewGuid(), Snapshot(rttAvg: 99), T0.AddSeconds(1));
+        registry.TryGetConnection(first, out var view);
+        Assert.Equal(99, view!.LatestSnapshot!.RttAvg);
+    }
+
+    [Theory]
+    [InlineData(-1, 1_000, 1)]
+    [InlineData(1_000, -1, 1)]
+    [InlineData(1_000, 1_000, 0)]
+    public void Out_of_range_options_are_rejected_at_construction(int staleMs, int retentionMs, int maxClients)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new LinkPulseRegistry(new LinkPulseOptions
+        {
+            StaleThresholdMs = staleMs,
+            StaleRetentionMs = retentionMs,
+            MaxTrackedClients = maxClients,
+        }));
+    }
+
+    [Fact]
     public void Changed_fires_on_record_remove_and_meaningful_sweeps()
     {
         var registry = NewRegistry();

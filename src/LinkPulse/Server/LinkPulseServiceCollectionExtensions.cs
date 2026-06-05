@@ -1,6 +1,7 @@
 using LinkPulse.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace LinkPulse.Server;
 
@@ -37,7 +38,10 @@ public static class LinkPulseServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<LinkPulseRegistry>();
         services.TryAddSingleton<LinkPulseConnectionGate>();
-        services.AddHostedService<LinkPulseSweepService>();
+
+        // TryAddEnumerable (not AddHostedService) so a second AddLinkPulse call does not register and
+        // run a duplicate sweep service — keeping the whole method idempotent.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LinkPulseSweepService>());
 
         return services;
     }

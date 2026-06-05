@@ -18,6 +18,7 @@ internal sealed class LinkPulseConnectionGate
     public LinkPulseConnectionGate(LinkPulseOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxConcurrentSessionsPerIp, 1);
         _maxPerIp = options.MaxConcurrentSessionsPerIp;
     }
 

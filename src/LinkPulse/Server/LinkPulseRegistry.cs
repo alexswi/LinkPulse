@@ -29,15 +29,24 @@ public sealed class LinkPulseRegistry
     private readonly ConcurrentDictionary<Guid, ConnectionEntry> _entries = new();
     private readonly TimeSpan _staleThreshold;
     private readonly TimeSpan _retention;
+    private readonly int _maxClients;
 
-    /// <summary>Creates a registry whose lifecycle thresholds come from <paramref name="options"/> (&#167;5.3).</summary>
-    /// <param name="options">The configured stale threshold and retention window.</param>
+    /// <summary>
+    /// Creates a registry whose lifecycle thresholds and capacity come from <paramref name="options"/>
+    /// (&#167;5.3, &#167;11), enforcing the documented bounds the options record itself does not.
+    /// </summary>
+    /// <param name="options">The configured stale threshold, retention window, and client cap.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A threshold is negative, or the client cap is below 1.</exception>
     public LinkPulseRegistry(LinkPulseOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.StaleThresholdMs);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.StaleRetentionMs);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxTrackedClients, 1);
         _staleThreshold = TimeSpan.FromMilliseconds(options.StaleThresholdMs);
         _retention = TimeSpan.FromMilliseconds(options.StaleRetentionMs);
+        _maxClients = options.MaxTrackedClients;
     }
 
     /// <summary>
@@ -62,7 +71,20 @@ public sealed class LinkPulseRegistry
     public void RecordSnapshot(Guid clientId, Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var entry = _entries.GetOrAdd(clientId, static (id, now) => new ConnectionEntry(id, now), nowUtc);
+
+        if (!_entries.TryGetValue(clientId, out var entry))
+        {
+            // §11 abuse bound: cap the number of distinct clients so an attacker minting unlimited
+            // random ClientIds cannot grow the registry without limit (entries linger for the whole
+            // retention window). Updates to already-tracked clients are always allowed.
+            if (_entries.Count >= _maxClients)
+            {
+                return;
+            }
+
+            entry = _entries.GetOrAdd(clientId, static (id, now) => new ConnectionEntry(id, now), nowUtc);
+        }
+
         entry.RecordSnapshot(sessionId, snapshot, nowUtc);
         OnChanged();
     }
@@ -140,5 +162,19 @@ public sealed class LinkPulseRegistry
         return false;
     }
 
-    private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    private void OnChanged()
+    {
+        // Notification is best-effort: a misbehaving subscriber (e.g. a buggy dashboard handler) must
+        // not throw out of here and tear down the probe connection that is feeding the registry. The
+        // contract is still "handlers must be cheap and must not throw"; this only contains the blast
+        // radius if one breaks it.
+        try
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception)
+        {
+            // Swallow: a notification failure is not a registry failure.
+        }
+    }
 }

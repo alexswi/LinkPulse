@@ -49,8 +49,17 @@ public sealed record LinkPulseOptions
     /// <summary>
     /// Maximum number of concurrent probe sessions accepted from a single client IP (&#167;11 abuse
     /// bound). Upgrade requests beyond this are rejected so one host cannot exhaust server resources.
+    /// Must be at least 1.
     /// </summary>
     public int MaxConcurrentSessionsPerIp { get; init; } = 20;
+
+    /// <summary>
+    /// Maximum number of distinct clients (<c>ClientId</c>s) the in-memory registry tracks at once
+    /// (&#167;11 abuse bound). Once reached, snapshots from <em>new</em> clients are dropped until
+    /// existing entries age out; snapshots from already-tracked clients are always accepted. Guards
+    /// against an attacker minting unlimited opaque identifiers to exhaust server memory. Must be at least 1.
+    /// </summary>
+    public int MaxTrackedClients { get; init; } = 50_000;
 
     /// <summary>How the client component renders.</summary>
     public DisplayMode Display { get; init; } = DisplayMode.Badge;

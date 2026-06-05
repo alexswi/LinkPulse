@@ -31,8 +31,11 @@ internal static class ProbeConnectionHandler
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        var minPingInterval = TimeSpan.FromMilliseconds(LinkPulseOptions.MinPingIntervalMs);
-        long lastAcceptedPingTimestamp = 0;
+        var minInterval = TimeSpan.FromMilliseconds(LinkPulseOptions.MinPingIntervalMs);
+        // Nullable sentinels — not 0 — so the first frame is always let through even under a fake
+        // TimeProvider whose GetTimestamp() starts at 0 (the engine/registry are built for fake clocks).
+        long? lastAcceptedPingTimestamp = null;
+        long? lastAcceptedSnapshotTimestamp = null;
 
         // The (clientId, sessionId) of the latest snapshot, so we can deregister on close.
         Guid clientId = default;
@@ -64,20 +67,34 @@ internal static class ProbeConnectionHandler
                 switch (ReadFrameType(message.Payload.Span))
                 {
                     case FrameType.Ping:
-                        // §11 throttle: only echo pings no faster than the server minimum.
-                        if (lastAcceptedPingTimestamp != 0 &&
-                            timeProvider.GetElapsedTime(lastAcceptedPingTimestamp) < minPingInterval)
+                        // §11 throttle: only echo pings no faster than the server minimum. A flooding
+                        // client's excess pings are dropped (it will see them as loss on timeout)
+                        // rather than amplified back onto the wire.
+                        if (lastAcceptedPingTimestamp is { } lastPing &&
+                            timeProvider.GetElapsedTime(lastPing) < minInterval)
                         {
                             break;
                         }
 
                         lastAcceptedPingTimestamp = timeProvider.GetTimestamp();
+                        // message.Payload aliases the rented receive buffer in the common single-frame
+                        // case; it must be fully sent here before the next ReceiveAsync overwrites it.
                         await socket.SendAsync(
                             message.Payload, WebSocketMessageType.Text, endOfMessage: true, cancellationToken)
                             .ConfigureAwait(false);
                         break;
 
                     case FrameType.Snapshot:
+                        // §11 abuse bound: rate-limit snapshot ingestion the same way, so a single
+                        // socket cannot flood the registry with parse + validate + record work (and a
+                        // Changed-event storm). Legitimate snapshots arrive seconds apart, far above this.
+                        if (lastAcceptedSnapshotTimestamp is { } lastSnap &&
+                            timeProvider.GetElapsedTime(lastSnap) < minInterval)
+                        {
+                            break;
+                        }
+
+                        lastAcceptedSnapshotTimestamp = timeProvider.GetTimestamp();
                         if (TryReadSnapshot(message.Payload.Span, out var frame) &&
                             SnapshotValidator.TryValidate(frame, out var cid, out var sid, out var snapshot))
                         {

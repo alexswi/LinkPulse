@@ -143,12 +143,95 @@ public sealed class ProbeEndpointIntegrationTests
     }
 
     [Fact]
-    public async Task A_foreign_origin_upgrade_is_rejected()
+    public async Task A_foreign_origin_upgrade_is_rejected_with_403()
     {
         using var host = await StartHostAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        // The TestHost client surfaces the failed handshake's status code in the exception message;
+        // asserting 403 (not just "some failure") proves it was the origin check that refused, and
+        // distinguishes it from the non-WebSocket 400 path.
+        var ex = await Assert.ThrowsAnyAsync<Exception>(
             () => ConnectAsync(host, origin: "http://evil.example"));
+
+        Assert.Contains("403", ex.Message);
+    }
+
+    [Fact]
+    public async Task A_request_without_an_origin_header_is_allowed()
+    {
+        // Native (non-browser) clients send no Origin; that is not the cross-site threat the check
+        // targets, so the upgrade must succeed and the socket must work.
+        using var host = await StartHostAsync();
+        using var socket = await ConnectAsync(host, origin: null);
+
+        const string ping = """{"type":"ping","seq":1,"payload":"y"}""";
+        await SendTextAsync(socket, ping);
+
+        Assert.Equal(ping, await ReceiveTextAsync(socket));
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_malformed_snapshot_is_discarded_and_the_socket_stays_open()
+    {
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        using var socket = await ConnectAsync(host);
+
+        // clientId is the empty GUID — the validator rejects it (§11). The frame must be dropped, not
+        // recorded, and the connection must stay usable.
+        const string badSnapshot =
+            """{"type":"snapshot","clientId":"00000000-0000-0000-0000-000000000000","sessionId":"11111111-1111-1111-1111-111111111111","phase":"Server","rttMin":1,"rttAvg":1,"rttMax":1,"jitter":0,"lossPct":0,"sampleCount":1}""";
+        await SendTextAsync(socket, badSnapshot);
+
+        // A following ping still round-trips, proving the socket was not torn down by the bad frame.
+        const string ping = """{"type":"ping","seq":1,"payload":"z"}""";
+        await SendTextAsync(socket, ping);
+
+        Assert.Equal(ping, await ReceiveTextAsync(socket));
+        Assert.Equal(0, registry.Count);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Closing_the_socket_deregisters_the_session()
+    {
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        var socket = await ConnectAsync(host);
+        try
+        {
+            ProbeFrame frame = SnapshotFrame.FromSnapshot(clientId, sessionId, new MetricSnapshot
+            {
+                Phase = ClientPhase.Server,
+                RttMin = 1,
+                RttAvg = 1,
+                RttMax = 1,
+                Jitter = 0,
+                LossPct = 0,
+                SampleCount = 1,
+            });
+            await SendTextAsync(socket, JsonSerializer.Serialize(frame, LinkPulseJsonContext.Default.ProbeFrame));
+
+            // Wait until the session is registered as active.
+            var active = await SpinUntilAsync(() =>
+                registry.TryGetConnection(clientId, out var v) && v!.ActiveSessions.Count > 0 ? v : null);
+            Assert.NotNull(active);
+
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+
+            // The handler's finally-block deregisters the session; the entry itself is retained.
+            var deregistered = await SpinUntilAsync(() =>
+                registry.TryGetConnection(clientId, out var v) && v!.ActiveSessions.Count == 0 ? v : null);
+            Assert.NotNull(deregistered);
+        }
+        finally
+        {
+            socket.Dispose();
+        }
     }
 
     // Polls a thread-safe read until it returns non-null or a short timeout elapses. The probe handler
