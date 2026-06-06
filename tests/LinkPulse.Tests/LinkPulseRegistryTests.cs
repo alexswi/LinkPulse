@@ -262,4 +262,23 @@ public sealed class LinkPulseRegistryTests
         registry.TryGetConnection(clientId, out var afterUpdate);
         Assert.Equal("Chrome/2", afterUpdate!.UserAgent);
     }
+
+    [Fact]
+    public void The_latest_non_empty_client_ip_is_retained_and_surfaced()
+    {
+        var registry = NewRegistry();
+        var clientId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0, clientIp: "203.0.113.5");
+        // A later snapshot with no IP must not erase the known one (latest-wins, but only on a value).
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(1), clientIp: null);
+        registry.TryGetConnection(clientId, out var afterNull);
+        Assert.Equal("203.0.113.5", afterNull!.ClientIp);
+
+        // A reconnect from a new address replaces it.
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(2), clientIp: "198.51.100.9");
+        registry.TryGetConnection(clientId, out var afterUpdate);
+        Assert.Equal("198.51.100.9", afterUpdate!.ClientIp);
+    }
 }

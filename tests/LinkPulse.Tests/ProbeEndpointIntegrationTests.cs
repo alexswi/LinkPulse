@@ -23,7 +23,7 @@ public sealed class ProbeEndpointIntegrationTests
     private const string ProbePath = "/connection-probe";
     private const string SameOrigin = "http://localhost";
 
-    private static async Task<IHost> StartHostAsync(LinkPulseOptions? options = null)
+    private static async Task<IHost> StartHostAsync(LinkPulseOptions? options = null, IPAddress? remoteIp = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(webHost =>
@@ -44,6 +44,18 @@ public sealed class ProbeEndpointIntegrationTests
                     })
                     .Configure(app =>
                     {
+                        // The in-memory TestServer leaves Connection.RemoteIpAddress null; stand in for the
+                        // host's networking (or its forwarded-headers middleware) so the §10 IP capture can
+                        // be exercised end to end.
+                        if (remoteIp is not null)
+                        {
+                            app.Use(async (context, next) =>
+                            {
+                                context.Connection.RemoteIpAddress = remoteIp;
+                                await next();
+                            });
+                        }
+
                         app.UseWebSockets();
                         app.UseRouting();
                         app.UseEndpoints(endpoints => endpoints.MapLinkPulseProbe(ProbePath));
@@ -260,6 +272,77 @@ public sealed class ProbeEndpointIntegrationTests
 
         Assert.NotNull(view);
         Assert.Equal("Mozilla/5.0 (probe-test)", view!.UserAgent);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_client_ip_is_captured_and_ipv4_mapped_addresses_are_normalised()
+    {
+        // The client connects over an IPv4-mapped IPv6 address (how a dual-stack socket commonly reports
+        // an IPv4 peer); the dashboard value must read as plain dotted IPv4, not the ::ffff: form.
+        var mapped = IPAddress.Parse("203.0.113.7").MapToIPv6();
+        Assert.True(mapped.IsIPv4MappedToIPv6); // guard: we are actually exercising the normalisation path
+
+        using var host = await StartHostAsync(remoteIp: mapped);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.ClientIp is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("203.0.113.7", view!.ClientIp);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_real_ipv6_address_is_surfaced_verbatim()
+    {
+        // The non-mapped branch of DisplayIp: a genuine IPv6 peer must be rendered as-is, never run
+        // through MapToIPv4 (which only applies to ::ffff: mapped addresses).
+        var ipv6 = IPAddress.Parse("2001:db8::1");
+        Assert.False(ipv6.IsIPv4MappedToIPv6); // guard: this is the as-is branch, not the normalised one
+
+        using var host = await StartHostAsync(remoteIp: ipv6);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.ClientIp is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("2001:db8::1", view!.ClientIp);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_client_ip_is_null_when_the_remote_address_is_unavailable()
+    {
+        // No RemoteIpAddress (the TestServer default, and what a misconfigured proxy yields). The gate
+        // buckets the connection under IPAddress.None, but the dashboard value must stay null → "—",
+        // never the "0.0.0.0" gate key. This pins the gate-IP/display-IP split that the endpoint's two
+        // comments exist to protect: formatting from gateIp instead of the raw nullable would regress
+        // every unknown-address client to "0.0.0.0" and this is the test that would catch it.
+        using var host = await StartHostAsync(remoteIp: null);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        // The connection is still accepted and recorded (the gate path works with IPAddress.None)...
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) ? v : null);
+
+        Assert.NotNull(view);
+        // ...but no address is surfaced: the display path used the raw nullable, not the gate fallback.
+        Assert.Null(view!.ClientIp);
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
     }
 

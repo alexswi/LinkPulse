@@ -19,6 +19,9 @@ internal enum DashboardColumn
     /// <summary>The most recent render phase (Server/WASM).</summary>
     Phase,
 
+    /// <summary>The client's remote address (the server's view).</summary>
+    ClientIp,
+
     /// <summary>Average round-trip time.</summary>
     Rtt,
 

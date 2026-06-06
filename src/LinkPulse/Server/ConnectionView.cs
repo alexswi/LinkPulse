@@ -43,8 +43,16 @@ public sealed record ConnectionView
 
     /// <summary>
     /// The connection's reported <c>User-Agent</c>, bounded as untrusted input (&#167;11), or
-    /// <see langword="null"/> if none was sent. The only potentially identifying field, surfaced on the
-    /// dashboard only when the operator toggles it on (&#167;10).
+    /// <see langword="null"/> if none was sent. An identifying field, surfaced on the dashboard only
+    /// when the operator toggles it on (&#167;10).
     /// </summary>
     public string? UserAgent { get; init; }
+
+    /// <summary>
+    /// The remote address the connection arrived from (the server's view, resolved by the host's
+    /// forwarded-headers middleware behind a proxy), IPv4-mapped addresses normalised to dotted IPv4,
+    /// or <see langword="null"/> when the address is unavailable. Latest-wins per client. Unlike the
+    /// user-agent it is shown on the dashboard ungated (see ADR-0001).
+    /// </summary>
+    public string? ClientIp { get; init; }
 }

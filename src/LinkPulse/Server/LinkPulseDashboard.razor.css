@@ -130,6 +130,8 @@
 .lpd-id:hover { border-color: var(--lp-border, rgba(0, 0, 0, 0.2)); }
 .lpd-id code { font-family: var(--lp-mono, ui-monospace, monospace); }
 
+.lpd-ip code { font-family: var(--lp-mono, ui-monospace, monospace); }
+
 .lpd-expand {
     width: 1.4rem;
     border: 0;

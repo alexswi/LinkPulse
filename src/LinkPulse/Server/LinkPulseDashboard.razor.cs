@@ -80,7 +80,8 @@ public sealed partial class LinkPulseDashboard : IAsyncDisposable
 
     /// <summary>
     /// Whether the expandable row detail shows the connection's user-agent (&#167;10/&#167;11). Off by
-    /// default because the user-agent is the only potentially identifying field.
+    /// default because the user-agent is an identifying field (the client IP, also identifying, is
+    /// shown ungated &#8212; see ADR-0001).
     /// </summary>
     [Parameter]
     public bool ShowUserAgent { get; set; }

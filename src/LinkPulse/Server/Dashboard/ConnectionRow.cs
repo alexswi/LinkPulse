@@ -47,6 +47,9 @@ internal sealed record ConnectionRow
     /// <summary>The bounded user-agent (&#167;11), or <see langword="null"/>; shown in the detail only when toggled on.</summary>
     public string? UserAgent { get; init; }
 
+    /// <summary>The remote address as the server sees it (&#167;10), or <see langword="null"/>; shown as the dashboard IP column.</summary>
+    public string? ClientIp { get; init; }
+
     /// <summary>Projects a registry <paramref name="view"/> into a table row, computing its overall rating.</summary>
     /// <param name="view">The immutable connection view to project.</param>
     /// <param name="thresholds">The quality tier boundaries to apply.</param>
@@ -69,6 +72,7 @@ internal sealed record ConnectionRow
             LastSeenUtc = view.LastSeenUtc,
             History = view.History,
             UserAgent = view.UserAgent,
+            ClientIp = view.ClientIp,
         };
     }
 }

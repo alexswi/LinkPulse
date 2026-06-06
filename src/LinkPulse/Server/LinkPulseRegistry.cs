@@ -73,7 +73,13 @@ public sealed class LinkPulseRegistry
     /// when unknown; the latest non-empty value is retained on the entry for the dashboard's optional
     /// user-agent column.
     /// </param>
-    public void RecordSnapshot(Guid clientId, Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc, string? userAgent = null)
+    /// <param name="clientIp">
+    /// The connection's remote address as the server sees it (&#167;10), or <see langword="null"/> when
+    /// unavailable; the latest non-empty value is retained on the entry for the dashboard's IP column.
+    /// </param>
+    public void RecordSnapshot(
+        Guid clientId, Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc,
+        string? userAgent = null, string? clientIp = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -90,7 +96,7 @@ public sealed class LinkPulseRegistry
             entry = _entries.GetOrAdd(clientId, static (id, now) => new ConnectionEntry(id, now), nowUtc);
         }
 
-        entry.RecordSnapshot(sessionId, snapshot, nowUtc, userAgent);
+        entry.RecordSnapshot(sessionId, snapshot, nowUtc, userAgent, clientIp);
         OnChanged();
     }
 
