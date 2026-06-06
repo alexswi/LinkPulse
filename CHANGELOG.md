@@ -5,7 +5,7 @@ All notable changes to LinkPulse are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-06-06
 
 ### Added
 - **Login name on the operator dashboard**: each connection's authenticated identity
@@ -56,7 +56,7 @@ Initial release.
 - **Zero third-party runtime dependencies**: the entire surface comes from the ASP.NET Core shared
   framework via a single `FrameworkReference`. Themeable via `--lp-*` CSS custom properties.
 
-[Unreleased]: https://github.com/alexswi/LinkPulse/compare/v1.2.0...HEAD
+[1.3.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.3.0
 [1.2.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.2.0
 [1.1.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.1.0
 [1.0.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.0.0
