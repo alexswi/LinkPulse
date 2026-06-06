@@ -30,6 +30,7 @@ internal static class ProbeConnectionHandler
     /// <param name="timeProvider">The clock used for the &#167;11 ping/snapshot throttle and snapshot timestamps.</param>
     /// <param name="userAgent">The connection's already-bounded <c>User-Agent</c> (&#167;10), or <see langword="null"/>.</param>
     /// <param name="clientIp">The connection's remote address as the server sees it (&#167;10), or <see langword="null"/>.</param>
+    /// <param name="loginName">The connection's bounded authenticated login name (&#167;10), or <see langword="null"/> when anonymous.</param>
     /// <param name="cancellationToken">Fires when the request is aborted or the server is shutting down.</param>
     public static async Task RunAsync(
         WebSocket socket,
@@ -37,6 +38,7 @@ internal static class ProbeConnectionHandler
         TimeProvider timeProvider,
         string? userAgent,
         string? clientIp,
+        string? loginName,
         CancellationToken cancellationToken)
     {
         var minInterval = TimeSpan.FromMilliseconds(LinkPulseOptions.MinPingIntervalMs);
@@ -108,7 +110,7 @@ internal static class ProbeConnectionHandler
                         {
                             clientId = cid;
                             sessionId = sid;
-                            registry.RecordSnapshot(cid, sid, snapshot, timeProvider.GetUtcNow(), userAgent, clientIp);
+                            registry.RecordSnapshot(cid, sid, snapshot, timeProvider.GetUtcNow(), userAgent, clientIp, loginName);
                         }
 
                         break;

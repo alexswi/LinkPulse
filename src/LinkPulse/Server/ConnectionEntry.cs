@@ -25,6 +25,7 @@ internal sealed class ConnectionEntry
     private bool _stale;
     private string? _userAgent;
     private string? _clientIp;
+    private string? _loginName;
 
     internal ConnectionEntry(Guid clientId, DateTimeOffset nowUtc)
     {
@@ -37,11 +38,12 @@ internal sealed class ConnectionEntry
     /// Applies a validated snapshot: registers the session, refreshes the latest metrics, phase, and
     /// last-seen, appends a history point, and &#8212; if the entry had gone stale &#8212; clears the
     /// stale flag and records an outage marker for the gap (&#167;5.3) <em>before</em> the new point.
-    /// The latest non-empty <paramref name="userAgent"/> and <paramref name="clientIp"/> are retained
-    /// for the dashboard (&#167;10).
+    /// The latest non-empty <paramref name="userAgent"/>, <paramref name="clientIp"/>, and
+    /// <paramref name="loginName"/> are retained for the dashboard (&#167;10).
     /// </summary>
     internal void RecordSnapshot(
-        Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc, string? userAgent = null, string? clientIp = null)
+        Guid sessionId, MetricSnapshot snapshot, DateTimeOffset nowUtc,
+        string? userAgent = null, string? clientIp = null, string? loginName = null)
     {
         lock (_gate)
         {
@@ -63,6 +65,11 @@ internal sealed class ConnectionEntry
             if (!string.IsNullOrEmpty(clientIp))
             {
                 _clientIp = clientIp;
+            }
+
+            if (!string.IsNullOrEmpty(loginName))
+            {
+                _loginName = loginName;
             }
 
             Append(new ConnectionHistoryPoint(nowUtc, snapshot));
@@ -122,6 +129,7 @@ internal sealed class ConnectionEntry
                 History = [.. _history],
                 UserAgent = _userAgent,
                 ClientIp = _clientIp,
+                LoginName = _loginName,
             };
         }
     }

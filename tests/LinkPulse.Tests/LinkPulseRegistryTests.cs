@@ -281,4 +281,24 @@ public sealed class LinkPulseRegistryTests
         registry.TryGetConnection(clientId, out var afterUpdate);
         Assert.Equal("198.51.100.9", afterUpdate!.ClientIp);
     }
+
+    [Fact]
+    public void The_latest_non_empty_login_name_is_retained_and_surfaced()
+    {
+        var registry = NewRegistry();
+        var clientId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0, loginName: "alice");
+        // A later snapshot with no identity must not erase the known one (latest-wins, but only on a value).
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(1), loginName: null);
+        registry.TryGetConnection(clientId, out var afterNull);
+        Assert.Equal("alice", afterNull!.LoginName);
+
+        // An empty name is likewise ignored; a reconnect under a new known name replaces it.
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(2), loginName: "");
+        registry.RecordSnapshot(clientId, sessionId, Snapshot(), T0.AddSeconds(3), loginName: "bob");
+        registry.TryGetConnection(clientId, out var afterUpdate);
+        Assert.Equal("bob", afterUpdate!.LoginName);
+    }
 }

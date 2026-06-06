@@ -55,4 +55,15 @@ public sealed record ConnectionView
     /// user-agent it is shown on the dashboard ungated (see ADR-0001).
     /// </summary>
     public string? ClientIp { get; init; }
+
+    /// <summary>
+    /// The authenticated identity of the connection — <c>context.User.Identity?.Name</c> as the host's
+    /// auth middleware populated it — bounded as a defensive measure, or <see langword="null"/> when the
+    /// client is anonymous (the probe endpoint never requires auth). Latest-wins-non-empty per client:
+    /// a reconnect under a known name replaces it; a reconnect with no identity leaves the last in place.
+    /// This is the identity of the <em>client being monitored</em>, not the dashboard operator's, and is
+    /// distinct from the <see cref="ClientId"/> (a stable per-browser identifier, not a login). Like the
+    /// IP it is shown on the dashboard ungated (see ADR-0002).
+    /// </summary>
+    public string? LoginName { get; init; }
 }

@@ -22,7 +22,8 @@ public sealed class DashboardProjectionTests
         Guid? clientId = null,
         DateTimeOffset? firstSeen = null,
         DateTimeOffset? lastSeen = null,
-        string? clientIp = null)
+        string? clientIp = null,
+        string? loginName = null)
     {
         MetricSnapshot? snapshot = rttAvg is double r
             ? new MetricSnapshot { Phase = phase, RttMin = r, RttAvg = r, RttMax = r, Jitter = 1, LossPct = 0, SampleCount = 30 }
@@ -39,6 +40,7 @@ public sealed class DashboardProjectionTests
             IsStale = stale,
             History = [],
             ClientIp = clientIp,
+            LoginName = loginName,
         };
     }
 
@@ -114,6 +116,33 @@ public sealed class DashboardProjectionTests
         // Ordinal string order (the chosen "simple" behaviour, not numeric): "10.0.0.5" precedes
         // "192.168.0.2" because '0' < '9' at the second character. Rows with no IP sort last.
         Assert.Equal(new[] { "10.0.0.5", "192.168.0.2", "2001:db8::1", null }, ips);
+    }
+
+    [Fact]
+    public void Sorting_by_login_name_orders_ordinally_with_anonymous_last()
+    {
+        var views = new[]
+        {
+            View(rttAvg: 20, loginName: "bob"),
+            View(rttAvg: 20, loginName: null),
+            View(rttAvg: 20, loginName: "alice"),
+            View(rttAvg: 20, loginName: "Carol"),
+        };
+
+        var names = Project(views, sort: DashboardColumn.LoginName).Select(r => r.LoginName);
+
+        // Ordinal (case-sensitive, like the IP column): uppercase 'C' (0x43) sorts before lowercase 'a'
+        // (0x61), so "Carol" leads. Anonymous rows (null) sort last.
+        Assert.Equal(new[] { "Carol", "alice", "bob", null }, names);
+    }
+
+    [Fact]
+    public void The_row_projection_copies_the_login_name_from_the_view()
+    {
+        var rows = Project([View(rttAvg: 20, loginName: "alice"), View(rttAvg: 20, loginName: null)]);
+
+        Assert.Contains(rows, r => r.LoginName == "alice");
+        Assert.Contains(rows, r => r.LoginName is null);
     }
 
     [Fact]

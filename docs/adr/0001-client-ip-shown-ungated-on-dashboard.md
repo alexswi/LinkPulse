@@ -15,6 +15,8 @@ be turned on.
 - It is inconsistent with the User-Agent's opt-in posture: the *more* identifying field (a raw IP,
   arguably PII under GDPR) is always on while the *milder* one is opt-in. The `ShowUserAgent` doc
   comment claiming UA is "the only potentially identifying field" is updated to reflect this.
+  ADR-0002 extends this decision to the connection's **login name** — a still-more-identifying field,
+  also always on for the same reasons.
 - It is a one-way door for exposure: flipping back to gated later is a cheap code change, but IPs
   already seen by operators cannot be un-exposed. Hosts with stricter privacy needs should weigh
   this before deploying the dashboard.
