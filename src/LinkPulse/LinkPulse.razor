@@ -66,7 +66,11 @@
                 <dl class="lp-metrics">
                     <div>
                         <dt>RTT</dt>
-                        <dd>@FormatMs(_snapshot?.RttAvg) <span class="lp-range">(@FormatWithoutMs(_snapshot?.RttMin) – @FormatMs(_snapshot?.RttMax))</span></dd>
+                        <dd>@FormatMs(_snapshot?.RttAvg)</dd>
+                    </div>
+                    <div>
+                        <dt>Range</dt>
+                        <dd>@FormatRange(_snapshot?.RttMin, _snapshot?.RttMax)</dd>
                     </div>
                     <div>
                         <dt>Jitter</dt>
@@ -97,8 +101,10 @@
     private static string FormatMs(double? ms) =>
         ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#} ms") : "—";
 
-    private static string FormatWithoutMs(double? ms) =>
-        ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#}") : "—";
+    private static string FormatRange(double? min, double? max) =>
+        min is double lo && max is double hi
+            ? string.Create(CultureInfo.InvariantCulture, $"{lo:0.#} ms – {hi:0.#} ms")
+            : "—";
 
     private static string FormatPct(double? pct) =>
         pct is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#}%") : "—";
