@@ -19,7 +19,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.jpg</PackageIcon>
+    <PackageIcon>icon.png</PackageIcon>
     <Copyright>Copyright (c) 2026 Alexandre Swioklo</Copyright>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
@@ -30,7 +30,7 @@
     <!-- Ship the repository README as the package's NuGet.org landing page. -->
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
     <!-- Package icon shown on NuGet.org (embedded, not the deprecated icon URL). -->
-    <None Include="icon.jpg" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
