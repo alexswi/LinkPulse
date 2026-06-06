@@ -10,7 +10,7 @@
        the FrameworkReference below (a framework reference is not a package dependency). -->
   <PropertyGroup>
     <PackageId>LinkPulse</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>Alexandre Swioklo</Authors>
     <Description>Real-time connection-quality monitoring for Blazor: a client badge that measures RTT, jitter, and packet loss over a dedicated WebSocket probe (consistent across the Auto Server/WebAssembly transition), plus an in-memory server registry and a live operator dashboard. Zero third-party dependencies.</Description>
     <PackageTags>blazor;aspnetcore;connection;network;latency;rtt;jitter;monitoring;websocket;dashboard</PackageTags>
@@ -19,6 +19,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.jpg</PackageIcon>
     <Copyright>Copyright (c) 2026 Alexandre Swioklo</Copyright>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
@@ -28,6 +29,8 @@
   <ItemGroup>
     <!-- Ship the repository README as the package's NuGet.org landing page. -->
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <!-- Package icon shown on NuGet.org (embedded, not the deprecated icon URL). -->
+    <None Include="icon.jpg" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
