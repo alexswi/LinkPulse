@@ -22,6 +22,9 @@ internal enum DashboardColumn
     /// <summary>The client's remote address (the server's view).</summary>
     ClientIp,
 
+    /// <summary>The connection's authenticated login name.</summary>
+    LoginName,
+
     /// <summary>Average round-trip time.</summary>
     Rtt,
 

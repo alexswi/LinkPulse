@@ -5,6 +5,16 @@ All notable changes to LinkPulse are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Login name on the operator dashboard**: each connection's authenticated identity
+  (`context.User.Identity?.Name`, as the host's auth middleware populates it) is shown as a sortable
+  column (ordinal order, anonymous connections last) beside the Client IP. Read opportunistically — the
+  probe endpoint stays anonymous-usable and never starts requiring auth; an anonymous connection renders
+  `—`. Latest-wins-non-empty across reconnects. Shown ungated by design, consistent with the Client IP
+  (see `docs/adr/0002-login-name-shown-ungated-on-dashboard.md`).
+
 ## [1.2.0] - 2026-06-06
 
 ### Added
@@ -46,6 +56,7 @@ Initial release.
 - **Zero third-party runtime dependencies**: the entire surface comes from the ASP.NET Core shared
   framework via a single `FrameworkReference`. Themeable via `--lp-*` CSS custom properties.
 
+[Unreleased]: https://github.com/alexswi/LinkPulse/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.2.0
 [1.1.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.1.0
 [1.0.0]: https://github.com/alexswi/LinkPulse/releases/tag/v1.0.0

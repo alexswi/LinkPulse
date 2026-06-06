@@ -55,7 +55,10 @@ internal static class DashboardProjection
             // Ordinal (culture-independent, matching the rest of the rendering) so the order is truly
             // lexicographic by code point — "10.0.0.5" before "192.168.0.2", not numeric. Rows with no
             // IP sort last when ascending (first when descending), like the numeric "?? MaxValue" columns.
-            DashboardColumn.ClientIp => Sort(rows, r => r.ClientIp, NoIpLastOrdinal, descending),
+            DashboardColumn.ClientIp => Sort(rows, r => r.ClientIp, NullsLastOrdinal, descending),
+            // Same ordinal, nulls-last treatment as the IP column: an authenticated login is code-point
+            // lexicographic (so "Carol" precedes "alice" — uppercase sorts first), anonymous rows last.
+            DashboardColumn.LoginName => Sort(rows, r => r.LoginName, NullsLastOrdinal, descending),
             DashboardColumn.Rtt => Sort(rows, r => r.RttAvg ?? double.MaxValue, descending),
             DashboardColumn.Jitter => Sort(rows, r => r.Jitter ?? double.MaxValue, descending),
             DashboardColumn.Loss => Sort(rows, r => r.LossPct ?? double.MaxValue, descending),
@@ -78,10 +81,11 @@ internal static class DashboardProjection
         return [.. ordered.ThenByDescending(r => r.LastSeenUtc).ThenBy(r => r.ClientId)];
     }
 
-    // Ordinal IP comparison with missing addresses ordered after present ones (ascending). Baked into
+    // Ordinal string comparison with missing values ordered after present ones (ascending). Shared by the
+    // IP and login-name columns: both are nullable identity strings that sort last when absent. Baked into
     // the comparer rather than a "(is null, …)" key so the order is code-point exact, not the
     // culture-sensitive default Comparer<string> would apply.
-    private static readonly IComparer<string?> NoIpLastOrdinal = Comparer<string?>.Create((a, b) =>
+    private static readonly IComparer<string?> NullsLastOrdinal = Comparer<string?>.Create((a, b) =>
         (a is null, b is null) switch
         {
             (true, true) => 0,

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.WebSockets;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using LinkPulse.Abstractions;
@@ -23,7 +24,8 @@ public sealed class ProbeEndpointIntegrationTests
     private const string ProbePath = "/connection-probe";
     private const string SameOrigin = "http://localhost";
 
-    private static async Task<IHost> StartHostAsync(LinkPulseOptions? options = null, IPAddress? remoteIp = null)
+    private static async Task<IHost> StartHostAsync(
+        LinkPulseOptions? options = null, IPAddress? remoteIp = null, ClaimsPrincipal? user = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(webHost =>
@@ -52,6 +54,18 @@ public sealed class ProbeEndpointIntegrationTests
                             app.Use(async (context, next) =>
                             {
                                 context.Connection.RemoteIpAddress = remoteIp;
+                                await next();
+                            });
+                        }
+
+                        // Likewise stand in for the host's auth middleware: it would set HttpContext.User
+                        // from the request's credentials before the endpoint runs, so the §10 login-name
+                        // capture reads context.User.Identity?.Name. No user → anonymous (Name is null).
+                        if (user is not null)
+                        {
+                            app.Use(async (context, next) =>
+                            {
+                                context.User = user;
                                 await next();
                             });
                         }
@@ -347,6 +361,66 @@ public sealed class ProbeEndpointIntegrationTests
     }
 
     [Fact]
+    public async Task The_login_name_is_captured_from_the_authenticated_identity()
+    {
+        // The host authenticated the probe request: context.User.Identity.Name flows onto the entry as
+        // the dashboard's login column, mirroring how the Client IP is captured from the connection.
+        using var host = await StartHostAsync(user: AuthenticatedAs("alice@corp.example"));
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.LoginName is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("alice@corp.example", view!.LoginName);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_login_name_is_null_for_an_anonymous_connection()
+    {
+        // No authenticated identity on the probe request (the endpoint never *requires* auth — §11). The
+        // connection is still accepted and recorded, but the login value stays null → "—", never empty.
+        using var host = await StartHostAsync();
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Null(view!.LoginName);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task An_over_long_login_name_is_truncated_to_the_bound()
+    {
+        // The login name is bounded the same defensive way as the User-Agent (256 chars): a pathological
+        // identity from the host's auth must not be stored or rendered unbounded.
+        using var host = await StartHostAsync(user: AuthenticatedAs(new string('a', 300)));
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.LoginName is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal(256, view!.LoginName!.Length);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
     public async Task An_over_long_user_agent_is_truncated_to_the_bound()
     {
         using var host = await StartHostAsync();
@@ -409,6 +483,11 @@ public sealed class ProbeEndpointIntegrationTests
         // One client throughout — the reconnect updated the existing entry rather than creating a second.
         Assert.Equal(1, registry.Count);
     }
+
+    // A principal whose Identity.Name is set, with a non-null AuthenticationType so IsAuthenticated is
+    // true — exactly what the host's auth middleware would leave on HttpContext.User.
+    private static ClaimsPrincipal AuthenticatedAs(string name) =>
+        new(new ClaimsIdentity([new Claim(ClaimTypes.Name, name)], authenticationType: "TestAuth"));
 
     private static Task SendSnapshotAsync(WebSocket socket, Guid clientId, Guid sessionId, ClientPhase phase = ClientPhase.Server)
     {

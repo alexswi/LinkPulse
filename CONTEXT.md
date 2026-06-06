@@ -33,3 +33,14 @@ reports. Latest-wins per client: a reconnect from a new **known** address replac
 with no resolvable address leaves the last known IP in place. Shown on the dashboard; distinct from
 the **ClientId**, which is a stable per-browser identifier, not an address.
 _Avoid_: remote address, host, source IP
+
+**Login name**:
+The authenticated identity of the probe connection — the server's view of `context.User.Identity?.Name`
+as the host's auth middleware populated it, not a value the client reports. Answers "who is on the
+other end of this connection?". Latest-wins per client: a reconnect under a known name replaces it; a
+reconnect with no identity (anonymous, or a host that doesn't authenticate the probe) leaves the last
+known name in place and otherwise renders `—`. Shown on the dashboard ungated, like the **Client IP**
+(see ADR-0002). This is the identity of the **client being monitored**, not the dashboard operator's
+own name; and it is distinct from the **ClientId**, which is a stable per-browser identifier, not a login.
+_Avoid_: user, username, operator, account
+

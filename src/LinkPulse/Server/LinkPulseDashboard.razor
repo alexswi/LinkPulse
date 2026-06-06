@@ -53,6 +53,7 @@
                         @SortHeader(DashboardColumn.Sessions, "Sessions")
                         @SortHeader(DashboardColumn.Phase, "Phase")
                         @SortHeader(DashboardColumn.ClientIp, "IP")
+                        @SortHeader(DashboardColumn.LoginName, "Login name")
                         @SortHeader(DashboardColumn.Rtt, "RTT avg")
                         @SortHeader(DashboardColumn.Jitter, "Jitter")
                         @SortHeader(DashboardColumn.Loss, "Loss")
@@ -64,7 +65,7 @@
                 <tbody>
                     @if (_rows.Count == 0)
                     {
-                        <tr class="lpd-empty"><td colspan="12">No connections.</td></tr>
+                        <tr class="lpd-empty"><td colspan="13">No connections.</td></tr>
                     }
                     @foreach (var row in _rows)
                     {
@@ -93,6 +94,7 @@
                             <td class="lpd-num">@row.ActiveSessions.Count</td>
                             <td>@(row.Phase == ClientPhase.Wasm ? "WASM" : "Server")</td>
                             <td class="lpd-ip"><code>@(string.IsNullOrEmpty(row.ClientIp) ? "—" : row.ClientIp)</code></td>
+                            <td class="lpd-login">@(string.IsNullOrEmpty(row.LoginName) ? "—" : row.LoginName)</td>
                             <td class="lpd-num">@FormatMs(row.RttAvg)</td>
                             <td class="lpd-num">@FormatMs(row.Jitter)</td>
                             <td class="lpd-num">@FormatPct(row.LossPct)</td>
@@ -108,7 +110,7 @@
                         @if (isOpen)
                         {
                             <tr class="lpd-detail">
-                                <td colspan="12">
+                                <td colspan="13">
                                     @RenderDetail(row)
                                 </td>
                             </tr>

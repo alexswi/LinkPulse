@@ -31,6 +31,11 @@ public static class LinkPulseEndpointRouteBuilderExtensions
     // client cannot bloat a registry entry with a megabyte-long header. The dashboard HTML-encodes it.
     private const int MaxUserAgentLength = 256;
 
+    // The login name (the connection's authenticated identity) is bounded for the same defensive reason
+    // the User-Agent is, even though its provenance is the host's auth rather than a raw client header
+    // (see BoundLoginName). A pathological identity must not bloat a registry entry or break the dashboard.
+    private const int MaxLoginNameLength = 256;
+
     /// <summary>
     /// Maps the probe endpoint at <paramref name="path"/> (default <see cref="LinkPulseProbeDefaults.ProbePath"/>).
     /// </summary>
@@ -76,13 +81,16 @@ public static class LinkPulseEndpointRouteBuilderExtensions
             }
 
             var userAgent = BoundUserAgent(context.Request.Headers.UserAgent);
+            // The connection's authenticated identity, if the host authenticated the probe request; null
+            // for an anonymous client (the endpoint never *requires* auth — §11) → "—" on the dashboard.
+            var loginName = BoundLoginName(context.User.Identity?.Name);
             // The gate buckets by IPAddress.None when the address is unknown; the dashboard instead
             // shows nothing for it (null → "—"), so format from the raw nullable, not the fallback.
             var clientIp = DisplayIp(remoteIp);
             try
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, userAgent, clientIp, context.RequestAborted);
+                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, userAgent, clientIp, loginName, context.RequestAborted);
             }
             finally
             {
@@ -91,22 +99,31 @@ public static class LinkPulseEndpointRouteBuilderExtensions
         });
     }
 
-    private static string? BoundUserAgent(Microsoft.Extensions.Primitives.StringValues header)
+    private static string? BoundUserAgent(Microsoft.Extensions.Primitives.StringValues header) =>
+        Bounded(header.ToString(), MaxUserAgentLength);
+
+    // The login name is the host's authenticated identity (context.User.Identity?.Name), not a value the
+    // client reports on the probe request — so, unlike the User-Agent, it is not attacker-controlled. It is
+    // still free-form text from whatever auth scheme the host plugs in (an email, a federated UPN, a display
+    // name) and is rendered in a dashboard cell, so it is bounded the same defensive way.
+    private static string? BoundLoginName(string? name) => Bounded(name, MaxLoginNameLength);
+
+    // Trim, treat empty/whitespace as absent (null → "—" on the dashboard), and cap the length without ever
+    // splitting a UTF-16 surrogate pair, so a stored value never ends with half a code point.
+    private static string? Bounded(string? raw, int maxLength)
     {
-        var value = header.ToString().Trim();
+        var value = (raw ?? string.Empty).Trim();
         if (value.Length == 0)
         {
             return null;
         }
 
-        if (value.Length <= MaxUserAgentLength)
+        if (value.Length <= maxLength)
         {
             return value;
         }
 
-        // Trim back off a lone high surrogate if the cap happens to fall between a surrogate pair, so
-        // the stored value never ends with half a code point.
-        var end = char.IsHighSurrogate(value[MaxUserAgentLength - 1]) ? MaxUserAgentLength - 1 : MaxUserAgentLength;
+        var end = char.IsHighSurrogate(value[maxLength - 1]) ? maxLength - 1 : maxLength;
         return value[..end];
     }
 
