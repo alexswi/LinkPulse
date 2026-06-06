@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- The shipped RCL exposes a type named LinkPulse in the LinkPulse namespace, so a consumer
+         namespaced under "LinkPulse.*" cannot bind (the segment resolves to the type, not a namespace).
+         The assembly stays "LinkPulse.Demo"; only the C# root namespace is de-collided. -->
+    <RootNamespace>LinkPulseDemo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LinkPulse.Demo.Client\LinkPulse.Demo.Client.csproj" />
+    <!-- The server phase hosts the probe endpoint, the registry, and the <LinkPulseDashboard />. -->
+    <ProjectReference Include="..\..\..\src\LinkPulse\LinkPulse.csproj" />
+  </ItemGroup>
+
+</Project>

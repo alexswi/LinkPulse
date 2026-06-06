@@ -81,6 +81,20 @@ The dashboard is **default-deny** — it exposes client identifiers and activity
 
 ---
 
+## Try the demo
+
+A runnable Blazor Auto sample lives in [`samples/LinkPulse.Demo`](samples/LinkPulse.Demo). It registers the services, maps the probe, drops the badge into the layout, and gates the dashboard behind a demo sign-in (cookie auth, no database):
+
+```bash
+dotnet run --project samples/LinkPulse.Demo/LinkPulse.Demo
+```
+
+Open the home page to watch the badge measure, then **Sign in** (no password) and open **Dashboard** to see connections appear, sorted worst-quality-first. Open a few tabs to populate the table, and leave one idle to watch it age to *stale*.
+
+> In v1 the badge runs with the `InteractiveServer` render mode. The single shipped RCL pulls in the ASP.NET Core shared framework (for the server registry, probe, and dashboard), which a WebAssembly project cannot load — so the client component can't yet execute in the WASM phase. The probe WebSocket is independent of the render mode, so measurement is identical regardless. See [Roadmap](#roadmap).
+
+---
+
 ## The client component
 
 `<LinkPulse />` is compact by default and expands on click.
@@ -209,6 +223,7 @@ JavaScript interop (Page Visibility, WebSocket, high-resolution timing) ships as
 
 Planned beyond v1:
 
+- WebAssembly-phase badge execution — splitting the single RCL so the client component ships without the server shared framework and can load in the WASM phase under Auto.
 - Layered configuration via dependency injection and `appsettings` binding.
 - Persistent storage for the connection registry (survives restarts).
 - Server-initiated active probing of silent clients.

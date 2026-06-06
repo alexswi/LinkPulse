@@ -1,0 +1,13 @@
+@page "/dashboard"
+@attribute [Authorize(Policy = DemoAuth.ViewerPolicy)]
+@rendermode InteractiveServer
+
+<PageTitle>LinkPulse dashboard</PageTitle>
+
+<h1>Connection dashboard</h1>
+<p>
+    Every browser running the badge reports here. Open the home page in a few tabs (or other browsers)
+    to watch sessions appear, then leave one idle to see it age to <em>stale</em>.
+</p>
+
+<LinkPulseDashboard Policy="@DemoAuth.ViewerPolicy" ShowUserAgent="true" />

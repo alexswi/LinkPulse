@@ -1,0 +1,22 @@
+@page "/"
+
+<PageTitle>LinkPulse demo</PageTitle>
+
+<h1>LinkPulse demo</h1>
+
+<p>
+    The connection-quality badge is in the top bar of every page. It connects to the probe endpoint,
+    measures round-trip time, jitter, and packet loss on a rolling window, and reports a snapshot to the
+    server every few seconds. Click it to expand the full panel with a live RTT sparkline.
+</p>
+
+<p>
+    Operators can sign in and open the <a href="/dashboard">dashboard</a> to see every connected client,
+    sorted worst-quality-first, with per-session detail and a quality distribution. The dashboard is
+    default-deny, so it prompts for sign-in first.
+</p>
+
+<p>
+    The <a href="counter">Counter</a> and <a href="weather">Weather</a> pages are the stock Blazor Auto
+    template pages, left in place to show the badge working alongside ordinary interactive content.
+</p>
