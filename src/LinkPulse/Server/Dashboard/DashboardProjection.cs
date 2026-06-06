@@ -52,9 +52,10 @@ internal static class DashboardProjection
             DashboardColumn.ClientId => Sort(rows, r => r.ClientId, descending),
             DashboardColumn.Sessions => Sort(rows, r => r.ActiveSessions.Count, descending),
             DashboardColumn.Phase => Sort(rows, r => (int)r.Phase, descending),
-            // Lexicographic by the displayed address. The leading "is null" key keeps rows with no IP
-            // sorted last (ascending), mirroring the numeric columns' "?? MaxValue" nulls-last convention.
-            DashboardColumn.ClientIp => Sort(rows, r => (r.ClientIp is null, r.ClientIp), descending),
+            // Ordinal (culture-independent, matching the rest of the rendering) so the order is truly
+            // lexicographic by code point — "10.0.0.5" before "192.168.0.2", not numeric. Rows with no
+            // IP sort last when ascending (first when descending), like the numeric "?? MaxValue" columns.
+            DashboardColumn.ClientIp => Sort(rows, r => r.ClientIp, NoIpLastOrdinal, descending),
             DashboardColumn.Rtt => Sort(rows, r => r.RttAvg ?? double.MaxValue, descending),
             DashboardColumn.Jitter => Sort(rows, r => r.Jitter ?? double.MaxValue, descending),
             DashboardColumn.Loss => Sort(rows, r => r.LossPct ?? double.MaxValue, descending),
@@ -65,11 +66,27 @@ internal static class DashboardProjection
     }
 
     private static IReadOnlyList<ConnectionRow> Sort<TKey>(
-        List<ConnectionRow> rows, Func<ConnectionRow, TKey> key, bool descending)
+        List<ConnectionRow> rows, Func<ConnectionRow, TKey> key, bool descending) =>
+        Sort(rows, key, comparer: null, descending);
+
+    private static IReadOnlyList<ConnectionRow> Sort<TKey>(
+        List<ConnectionRow> rows, Func<ConnectionRow, TKey> key, IComparer<TKey>? comparer, bool descending)
     {
-        var ordered = descending ? rows.OrderByDescending(key) : rows.OrderBy(key);
+        var ordered = descending ? rows.OrderByDescending(key, comparer) : rows.OrderBy(key, comparer);
 
         // Stable, direction-independent tie-break so equal keys never reshuffle between refreshes.
         return [.. ordered.ThenByDescending(r => r.LastSeenUtc).ThenBy(r => r.ClientId)];
     }
+
+    // Ordinal IP comparison with missing addresses ordered after present ones (ascending). Baked into
+    // the comparer rather than a "(is null, …)" key so the order is code-point exact, not the
+    // culture-sensitive default Comparer<string> would apply.
+    private static readonly IComparer<string?> NoIpLastOrdinal = Comparer<string?>.Create((a, b) =>
+        (a is null, b is null) switch
+        {
+            (true, true) => 0,
+            (true, false) => 1,
+            (false, true) => -1,
+            _ => string.CompareOrdinal(a, b),
+        });
 }

@@ -29,6 +29,7 @@ both the numeric metrics and the sparkline.
 **Client IP**:
 The network address the probe connection arrived from — the server's view of the client's remote
 address (resolved by the host's forwarded-headers middleware behind a proxy), not a value the client
-reports. Latest-wins per client: a reconnect from a new address replaces it. Shown on the dashboard;
-distinct from the **ClientId**, which is a stable per-browser identifier, not an address.
+reports. Latest-wins per client: a reconnect from a new **known** address replaces it; a reconnect
+with no resolvable address leaves the last known IP in place. Shown on the dashboard; distinct from
+the **ClientId**, which is a stable per-browser identifier, not an address.
 _Avoid_: remote address, host, source IP

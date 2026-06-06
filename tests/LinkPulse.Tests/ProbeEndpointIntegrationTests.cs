@@ -299,6 +299,54 @@ public sealed class ProbeEndpointIntegrationTests
     }
 
     [Fact]
+    public async Task A_real_ipv6_address_is_surfaced_verbatim()
+    {
+        // The non-mapped branch of DisplayIp: a genuine IPv6 peer must be rendered as-is, never run
+        // through MapToIPv4 (which only applies to ::ffff: mapped addresses).
+        var ipv6 = IPAddress.Parse("2001:db8::1");
+        Assert.False(ipv6.IsIPv4MappedToIPv6); // guard: this is the as-is branch, not the normalised one
+
+        using var host = await StartHostAsync(remoteIp: ipv6);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.ClientIp is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("2001:db8::1", view!.ClientIp);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_client_ip_is_null_when_the_remote_address_is_unavailable()
+    {
+        // No RemoteIpAddress (the TestServer default, and what a misconfigured proxy yields). The gate
+        // buckets the connection under IPAddress.None, but the dashboard value must stay null → "—",
+        // never the "0.0.0.0" gate key. This pins the gate-IP/display-IP split that the endpoint's two
+        // comments exist to protect: formatting from gateIp instead of the raw nullable would regress
+        // every unknown-address client to "0.0.0.0" and this is the test that would catch it.
+        using var host = await StartHostAsync(remoteIp: null);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        // The connection is still accepted and recorded (the gate path works with IPAddress.None)...
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) ? v : null);
+
+        Assert.NotNull(view);
+        // ...but no address is surfaced: the display path used the raw nullable, not the gate fallback.
+        Assert.Null(view!.ClientIp);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
     public async Task An_over_long_user_agent_is_truncated_to_the_bound()
     {
         using var host = await StartHostAsync();

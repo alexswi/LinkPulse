@@ -111,8 +111,8 @@ public sealed class DashboardProjectionTests
 
         var ips = Project(views, sort: DashboardColumn.ClientIp).Select(r => r.ClientIp);
 
-        // Plain string order (the chosen "simple" behaviour, not numeric): "10.0.0.5" precedes
-        // "192.168.0.2" because '1' < '9'. Rows with no IP sort last.
+        // Ordinal string order (the chosen "simple" behaviour, not numeric): "10.0.0.5" precedes
+        // "192.168.0.2" because '0' < '9' at the second character. Rows with no IP sort last.
         Assert.Equal(new[] { "10.0.0.5", "192.168.0.2", "2001:db8::1", null }, ips);
     }
 
