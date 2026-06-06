@@ -297,8 +297,11 @@ public sealed class ProbeEndpointIntegrationTests
         using (var serverPhase = await ConnectAsync(host))
         {
             await SendSnapshotAsync(serverPhase, clientId, Guid.NewGuid(), ClientPhase.Server);
-            await SpinUntilAsync(() =>
+            // Assert (not just await) that the Server-phase snapshot landed: otherwise a silent failure to
+            // record it would let the test "prove" continuity it never actually exercised.
+            var serverView = await SpinUntilAsync(() =>
                 registry.TryGetConnection(clientId, out var v) && v!.Phase == ClientPhase.Server ? v : null);
+            Assert.NotNull(serverView);
             await serverPhase.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
         }
 
@@ -311,6 +314,12 @@ public sealed class ProbeEndpointIntegrationTests
 
             Assert.NotNull(view);
             Assert.Equal(ClientPhase.Wasm, view!.Phase);
+
+            // Continuity, not just a phase flip: the Server-phase sample is still the oldest point in the
+            // retained history, so the reconnect extended the measurement rather than replacing it.
+            Assert.True(view.History.Count >= 2);
+            Assert.Equal(ClientPhase.Server, view.History[0].Snapshot!.Phase);
+
             await wasmPhase.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
         }
 

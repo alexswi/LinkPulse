@@ -11,7 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Razor Components with both interactive render modes (Blazor Auto). Authentication is handled entirely
 // server-side (the dashboard and badge run InteractiveServer), so there is no need to flow auth state to
-// the WebAssembly runtime — the only WASM-rendered page is the stock Counter, which needs no authorization.
+// the WebAssembly runtime — the only WASM-capable page is the stock Counter (render mode InteractiveAuto),
+// which needs no authorization.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
@@ -25,14 +26,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/account/denied";
     });
 
-// The policy the dashboard is gated on. Requires an authenticated operator; the dashboard component is
-// also handed this policy name so its internal AuthorizeView re-checks it during interactive rendering.
+// The policy the dashboard is gated on (requires an authenticated operator). The same name is also passed
+// to the <LinkPulseDashboard> component so it authorizes against the identical policy.
 builder.Services.AddAuthorization(options =>
     options.AddPolicy(DemoAuth.ViewerPolicy, policy =>
         policy.RequireAuthenticatedUser().RequireRole(DemoAuth.OperatorRole)));
 
 builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuthenticationStateProvider, DemoAuthenticationStateProvider>();
 
 // LinkPulse server side: the registry, the per-IP gate, and the background sweep service.

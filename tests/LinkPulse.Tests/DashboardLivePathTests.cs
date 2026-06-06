@@ -55,27 +55,34 @@ public sealed class DashboardLivePathTests
     }
 
     [Fact]
-    public void A_client_reconnecting_in_a_new_phase_stays_one_row_and_updates_in_place()
+    public void A_client_reconnecting_in_a_new_phase_keeps_one_row_with_continuous_history()
     {
-        // The Blazor Auto transition: the same browser (one ClientId) drops its Server-phase probe and
-        // reconnects with a fresh session in the WebAssembly phase. The dashboard must keep showing a
-        // single row whose phase follows the client across the boundary — the measurement-continuity
-        // guarantee, proven here at the registry+projection level (the live WASM badge can't run while the
-        // RCL ships the server shared framework).
+        // The Blazor Auto transition in full: the same browser (one ClientId) reports in its Server phase,
+        // its probe goes silent long enough to be swept stale (the socket drop during the boundary), then
+        // it reconnects with a fresh session in the WebAssembly phase. The dashboard must keep showing a
+        // single row whose phase follows the client and whose history spans the gap — the measurement-
+        // continuity guarantee, proven at the registry+projection level (the live WASM badge can't run
+        // while the RCL ships the server shared framework).
         var registry = NewRegistry();
         var clientId = Guid.NewGuid();
 
         registry.RecordSnapshot(clientId, Guid.NewGuid(), Snapshot(rttAvg: 30, phase: ClientPhase.Server), T0);
-        registry.RecordSnapshot(clientId, Guid.NewGuid(), Snapshot(rttAvg: 45, phase: ClientPhase.Wasm), T0.AddSeconds(1));
+        registry.Sweep(T0.AddSeconds(2)); // past the 1 s stale threshold — the drop across the boundary
+        registry.RecordSnapshot(clientId, Guid.NewGuid(), Snapshot(rttAvg: 45, phase: ClientPhase.Wasm), T0.AddSeconds(3));
 
-        var row = Assert.Single(Project(registry, T0.AddSeconds(1)));
+        var row = Assert.Single(Project(registry, T0.AddSeconds(3)));
         Assert.Equal(clientId, row.ClientId);
         Assert.Equal(ClientPhase.Wasm, row.Phase); // phase followed the client across the transition
         Assert.Equal(45, row.RttAvg);
+        Assert.False(row.IsStale); // the reconnect cleared the stale flag
 
-        // Both phases' samples are retained as one continuous history (no reset on the boundary).
-        var historyCount = row.History.Count;
-        Assert.Equal(2, historyCount);
+        // History spans the boundary: the Server-phase sample, an outage marker for the gap, then the
+        // WebAssembly-phase sample — the prior measurement is retained, not reset.
+        Assert.Collection(
+            row.History,
+            point => { Assert.False(point.IsOutage); Assert.Equal(ClientPhase.Server, point.Snapshot!.Phase); },
+            point => Assert.True(point.IsOutage),
+            point => { Assert.False(point.IsOutage); Assert.Equal(ClientPhase.Wasm, point.Snapshot!.Phase); });
     }
 
     [Fact]
@@ -111,8 +118,12 @@ public sealed class DashboardLivePathTests
         Assert.False(liveRow.IsStale);
         Assert.Equal(QualityRating.Excellent, liveRow.Rating);
 
+        var notified = false;
+        registry.Changed += (_, _) => notified = true;
+
         registry.Sweep(T0.AddMilliseconds(1_001)); // past the 1 s stale threshold
 
+        Assert.True(notified); // the stale flip is a change the dashboard refreshes on
         var staleRow = Assert.Single(Project(registry, T0.AddMilliseconds(1_001)));
         Assert.True(staleRow.IsStale);
         Assert.Equal(QualityRating.Disconnected, staleRow.Rating);

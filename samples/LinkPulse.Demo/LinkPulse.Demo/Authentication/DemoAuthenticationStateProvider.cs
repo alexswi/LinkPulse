@@ -1,26 +1,25 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
+using Microsoft.Extensions.Logging;
 
 namespace LinkPulseDemo.Authentication;
 
 /// <summary>
-/// A minimal server-side <see cref="AuthenticationStateProvider"/> that surfaces the cookie-authenticated
-/// user to Blazor's authorization components. It captures the principal once, at construction (when the
-/// circuit's <see cref="HttpContext"/> is still available), and returns that same state for the circuit's
-/// lifetime — so an interactive component's <c>AuthorizeView</c> keeps seeing the signed-in user rather
-/// than reverting to anonymous after the first render, which a naive per-call <c>IHttpContextAccessor</c>
-/// read would do once the circuit is established.
+/// Flows the cookie-authenticated user into Blazor's authorization components for the interactive Server
+/// circuit. Subclassing <see cref="RevalidatingServerAuthenticationStateProvider"/> means the framework
+/// seeds the authentication state from the connecting (authenticated) request and keeps it for the
+/// circuit's lifetime — so an interactive component's <c>AuthorizeView</c> keeps seeing the signed-in
+/// user. (A provider that read <c>IHttpContextAccessor</c> instead would see a null <c>HttpContext</c>
+/// once the circuit is established and wrongly flip authorized content to its denied state.)
 /// </summary>
-internal sealed class DemoAuthenticationStateProvider : AuthenticationStateProvider
+internal sealed class DemoAuthenticationStateProvider(ILoggerFactory loggerFactory)
+    : RevalidatingServerAuthenticationStateProvider(loggerFactory)
 {
-    private readonly Task<AuthenticationState> _state;
+    /// <summary>The demo's cookie does not change mid-circuit, so revalidation can be infrequent.</summary>
+    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);
 
-    public DemoAuthenticationStateProvider(IHttpContextAccessor accessor)
-    {
-        var user = accessor.HttpContext?.User ?? new ClaimsPrincipal(new ClaimsIdentity());
-        _state = Task.FromResult(new AuthenticationState(user));
-    }
-
-    /// <inheritdoc />
-    public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+    /// <summary>The demo has no revocation store, so a signed-in user stays valid until the cookie expires.</summary>
+    protected override Task<bool> ValidateAuthenticationStateAsync(
+        AuthenticationState authenticationState, CancellationToken cancellationToken) =>
+        Task.FromResult(true);
 }
