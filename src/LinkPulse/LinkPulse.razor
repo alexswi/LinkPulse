@@ -9,7 +9,7 @@
     var currentRtt = FormatRtt(_engine.LatestRttMs);
     var showDetails = Display == DisplayMode.Panel || _expanded;
 
-    <div class="lp lp--@modifier @(showDetails ? "lp--open" : null)" role="status" aria-live="polite">
+    <div class="lp lp--@modifier @(showDetails ? "lp--open" : null) @(Display == DisplayMode.Badge ? "lp--badge" : null)" role="status" aria-live="polite">
 
         @if (Display == DisplayMode.Badge)
         {
@@ -33,6 +33,13 @@
                     <span class="lp-dot" aria-hidden="true"></span>
                     <span class="lp-label">@label</span>
                     <span class="lp-phase">@(_phase == ClientPhase.Wasm ? "WASM" : "Server")</span>
+                    @if (Display == DisplayMode.Badge)
+                    {
+                        <button type="button" class="lp-close" @onclick="Collapse"
+                                aria-label="Close connection details">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    }
                 </div>
 
                 @if (!_connected)
@@ -59,7 +66,7 @@
                 <dl class="lp-metrics">
                     <div>
                         <dt>RTT</dt>
-                        <dd>@FormatMs(_snapshot?.RttAvg) <span class="lp-range">(@FormatMs(_snapshot?.RttMin) – @FormatMs(_snapshot?.RttMax))</span></dd>
+                        <dd>@FormatMs(_snapshot?.RttAvg) <span class="lp-range">(@FormatWithoutMs(_snapshot?.RttMin) – @FormatMs(_snapshot?.RttMax))</span></dd>
                     </div>
                     <div>
                         <dt>Jitter</dt>
@@ -82,11 +89,16 @@
 @code {
     private void Toggle() => _expanded = !_expanded;
 
+    private void Collapse() => _expanded = false;
+
     private static string FormatRtt(double? ms) =>
         ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0} ms") : "—";
 
     private static string FormatMs(double? ms) =>
         ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#} ms") : "—";
+
+    private static string FormatWithoutMs(double? ms) =>
+        ms is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#}") : "—";
 
     private static string FormatPct(double? pct) =>
         pct is double v ? string.Create(CultureInfo.InvariantCulture, $"{v:0.#}%") : "—";

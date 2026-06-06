@@ -61,14 +61,50 @@
     color: var(--lp-muted, #6b7280);
 }
 
+.lp-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lp-radius, 0.5rem);
+    background: none;
+    color: var(--lp-muted, #6b7280);
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.lp-close:hover { color: var(--lp-fg, #1f2937); }
+
+.lp-close:focus-visible {
+    outline: 2px solid var(--lp-accent);
+    outline-offset: 1px;
+}
+
 .lp-panel {
     margin-top: 0.375rem;
     padding: 0.625rem 0.75rem;
-    min-width: 12rem;
+    min-width: 16.4rem;
     border: 1px solid var(--lp-border, rgba(0, 0, 0, 0.12));
     border-radius: var(--lp-radius, 0.5rem);
     background: var(--lp-bg, #ffffff);
     box-shadow: var(--lp-shadow, 0 4px 16px rgba(0, 0, 0, 0.12));
+}
+
+/* The expandable badge anchors its detail panel as a floating popover (below). */
+.lp--badge { position: relative; }
+
+/* Expanded badge detail floats out of flow so a fixed-height/sticky host toolbar
+   can never clip it (the inline box would otherwise grow and be cut off). */
+.lp--badge .lp-panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: var(--lp-z, 50);
 }
 
 /* When the probe is down, last-known metrics are dimmed rather than blanked (§5.2). */
@@ -115,14 +151,14 @@
 
 .lp-metrics {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.6fr 1fr;
     gap: 0.25rem 0.75rem;
     margin: 0;
 }
 
 .lp-metrics div { display: flex; justify-content: space-between; gap: 0.5rem; }
 
-.lp-metrics dt { color: var(--lp-muted, #6b7280); }
+.lp-metrics dt { color: var(--lp-muted, #6b7280); margin-right:0; }
 
 .lp-metrics dd {
     margin: 0;
