@@ -23,7 +23,7 @@ public sealed class ProbeEndpointIntegrationTests
     private const string ProbePath = "/connection-probe";
     private const string SameOrigin = "http://localhost";
 
-    private static async Task<IHost> StartHostAsync(LinkPulseOptions? options = null)
+    private static async Task<IHost> StartHostAsync(LinkPulseOptions? options = null, IPAddress? remoteIp = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(webHost =>
@@ -44,6 +44,18 @@ public sealed class ProbeEndpointIntegrationTests
                     })
                     .Configure(app =>
                     {
+                        // The in-memory TestServer leaves Connection.RemoteIpAddress null; stand in for the
+                        // host's networking (or its forwarded-headers middleware) so the §10 IP capture can
+                        // be exercised end to end.
+                        if (remoteIp is not null)
+                        {
+                            app.Use(async (context, next) =>
+                            {
+                                context.Connection.RemoteIpAddress = remoteIp;
+                                await next();
+                            });
+                        }
+
                         app.UseWebSockets();
                         app.UseRouting();
                         app.UseEndpoints(endpoints => endpoints.MapLinkPulseProbe(ProbePath));
@@ -260,6 +272,29 @@ public sealed class ProbeEndpointIntegrationTests
 
         Assert.NotNull(view);
         Assert.Equal("Mozilla/5.0 (probe-test)", view!.UserAgent);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_client_ip_is_captured_and_ipv4_mapped_addresses_are_normalised()
+    {
+        // The client connects over an IPv4-mapped IPv6 address (how a dual-stack socket commonly reports
+        // an IPv4 peer); the dashboard value must read as plain dotted IPv4, not the ::ffff: form.
+        var mapped = IPAddress.Parse("203.0.113.7").MapToIPv6();
+        Assert.True(mapped.IsIPv4MappedToIPv6); // guard: we are actually exercising the normalisation path
+
+        using var host = await StartHostAsync(remoteIp: mapped);
+        var registry = host.Services.GetRequiredService<LinkPulseRegistry>();
+        var clientId = Guid.NewGuid();
+
+        using var socket = await ConnectAsync(host);
+        await SendSnapshotAsync(socket, clientId, Guid.NewGuid());
+
+        var view = await SpinUntilAsync(() =>
+            registry.TryGetConnection(clientId, out var v) && v!.ClientIp is not null ? v : null);
+
+        Assert.NotNull(view);
+        Assert.Equal("203.0.113.7", view!.ClientIp);
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
     }
 

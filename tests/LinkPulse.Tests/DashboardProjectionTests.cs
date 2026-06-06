@@ -21,7 +21,8 @@ public sealed class DashboardProjectionTests
         ClientPhase phase = ClientPhase.Server,
         Guid? clientId = null,
         DateTimeOffset? firstSeen = null,
-        DateTimeOffset? lastSeen = null)
+        DateTimeOffset? lastSeen = null,
+        string? clientIp = null)
     {
         MetricSnapshot? snapshot = rttAvg is double r
             ? new MetricSnapshot { Phase = phase, RttMin = r, RttAvg = r, RttMax = r, Jitter = 1, LossPct = 0, SampleCount = 30 }
@@ -37,6 +38,7 @@ public sealed class DashboardProjectionTests
             LastSeenUtc = lastSeen ?? T0,
             IsStale = stale,
             History = [],
+            ClientIp = clientIp,
         };
     }
 
@@ -94,6 +96,24 @@ public sealed class DashboardProjectionTests
 
         // Smallest first; the snapshotless row (null) sorts last.
         Assert.Equal(new double?[] { 20, 100, 200, null }, rtts);
+    }
+
+    [Fact]
+    public void Sorting_by_ip_orders_lexicographically_with_no_ip_last()
+    {
+        var views = new[]
+        {
+            View(rttAvg: 20, clientIp: "192.168.0.2"),
+            View(rttAvg: 20, clientIp: null),
+            View(rttAvg: 20, clientIp: "10.0.0.5"),
+            View(rttAvg: 20, clientIp: "2001:db8::1"),
+        };
+
+        var ips = Project(views, sort: DashboardColumn.ClientIp).Select(r => r.ClientIp);
+
+        // Plain string order (the chosen "simple" behaviour, not numeric): "10.0.0.5" precedes
+        // "192.168.0.2" because '1' < '9'. Rows with no IP sort last.
+        Assert.Equal(new[] { "10.0.0.5", "192.168.0.2", "2001:db8::1", null }, ips);
     }
 
     [Fact]

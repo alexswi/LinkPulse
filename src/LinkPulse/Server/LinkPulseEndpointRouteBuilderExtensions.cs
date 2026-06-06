@@ -65,22 +65,28 @@ public static class LinkPulseEndpointRouteBuilderExtensions
                 return;
             }
 
-            var ip = context.Connection.RemoteIpAddress ?? IPAddress.None;
-            if (!gate.TryAcquire(ip))
+            var remoteIp = context.Connection.RemoteIpAddress;
+            // The per-IP cap buckets an unknown address under IPAddress.None; acquire and release must
+            // use the same key.
+            var gateIp = remoteIp ?? IPAddress.None;
+            if (!gate.TryAcquire(gateIp))
             {
                 context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                 return;
             }
 
             var userAgent = BoundUserAgent(context.Request.Headers.UserAgent);
+            // The gate buckets by IPAddress.None when the address is unknown; the dashboard instead
+            // shows nothing for it (null → "—"), so format from the raw nullable, not the fallback.
+            var clientIp = DisplayIp(remoteIp);
             try
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, userAgent, context.RequestAborted);
+                await ProbeConnectionHandler.RunAsync(socket, registry, timeProvider, userAgent, clientIp, context.RequestAborted);
             }
             finally
             {
-                gate.Release(ip);
+                gate.Release(gateIp);
             }
         });
     }
@@ -102,6 +108,24 @@ public static class LinkPulseEndpointRouteBuilderExtensions
         // the stored value never ends with half a code point.
         var end = char.IsHighSurrogate(value[MaxUserAgentLength - 1]) ? MaxUserAgentLength - 1 : MaxUserAgentLength;
         return value[..end];
+    }
+
+    // The dashboard's display form of the remote address (§10): IPv4-mapped IPv6 (::ffff:a.b.c.d) is
+    // collapsed to dotted IPv4 so an IPv4 client reads as a.b.c.d rather than the mapped form; every
+    // other address (real IPv6, loopback) is rendered as-is. Null when the address is unavailable.
+    private static string? DisplayIp(IPAddress? address)
+    {
+        if (address is null)
+        {
+            return null;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        return address.ToString();
     }
 
     private static bool IsAllowedOrigin(HttpRequest request)

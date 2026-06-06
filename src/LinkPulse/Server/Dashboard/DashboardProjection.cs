@@ -52,6 +52,9 @@ internal static class DashboardProjection
             DashboardColumn.ClientId => Sort(rows, r => r.ClientId, descending),
             DashboardColumn.Sessions => Sort(rows, r => r.ActiveSessions.Count, descending),
             DashboardColumn.Phase => Sort(rows, r => (int)r.Phase, descending),
+            // Lexicographic by the displayed address. The leading "is null" key keeps rows with no IP
+            // sorted last (ascending), mirroring the numeric columns' "?? MaxValue" nulls-last convention.
+            DashboardColumn.ClientIp => Sort(rows, r => (r.ClientIp is null, r.ClientIp), descending),
             DashboardColumn.Rtt => Sort(rows, r => r.RttAvg ?? double.MaxValue, descending),
             DashboardColumn.Jitter => Sort(rows, r => r.Jitter ?? double.MaxValue, descending),
             DashboardColumn.Loss => Sort(rows, r => r.LossPct ?? double.MaxValue, descending),
