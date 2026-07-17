@@ -44,3 +44,13 @@ known name in place and otherwise renders `—`. Shown on the dashboard ungated,
 own name; and it is distinct from the **ClientId**, which is a stable per-browser identifier, not a login.
 _Avoid_: user, username, operator, account
 
+**Presence** / **online**:
+The canonical per-login liveness summary (`LoginPresence`), aggregated across every tracked client
+carrying that **login name** (compared case-insensitively, matching ASP.NET Identity). A login is
+**online** when at least one of its entries is not stale *and* has at least one active probe session;
+a session-less but not-yet-stale entry is tracked but not online. Because the login name is
+latest-wins-non-empty, a logged-out browser that keeps probing anonymously still counts toward its
+last known login — presence means "a browser that last authenticated as this login is connected",
+not proof the user is still signed in.
+_Avoid_: availability, activity, "logged in" (presence cannot prove that)
+
