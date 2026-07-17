@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using LinkPulse.Abstractions;
 
 namespace LinkPulse.Server;
@@ -193,6 +194,94 @@ public sealed class LinkPulseRegistry
 
         view = null;
         return false;
+    }
+
+    /// <summary>
+    /// Takes an allocation-cheap presence summary of every <em>authenticated</em> login currently
+    /// tracked (#26), keyed case-insensitively (<see cref="StringComparer.OrdinalIgnoreCase"/>,
+    /// matching ASP.NET Identity's username normalization). Anonymous entries (no
+    /// <c>LoginName</c>) are excluded. Unlike <see cref="GetConnections"/> this copies no history,
+    /// session lists, or user-agents &#8212; only per-entry scalars are read under each entry's lock
+    /// &#8212; so it is suitable for per-request presence checks. Subscribe to <see cref="Changed"/>
+    /// to refresh presence live.
+    /// </summary>
+    /// <remarks>
+    /// Because login names are retained latest-wins-non-empty per client (see
+    /// <see cref="ConnectionView.LoginName"/>), a browser whose user signed out but that keeps
+    /// probing anonymously still counts toward its last known login &#8212; see the caveat on
+    /// <see cref="LoginPresence"/>.
+    /// </remarks>
+    /// <returns>An independent snapshot; safe to hold and query.</returns>
+    public IReadOnlyDictionary<string, LoginPresence> GetLoginPresences()
+    {
+        var presences = new Dictionary<string, LoginPresence>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in _entries.Values)
+        {
+            var scalars = entry.ReadPresenceScalars();
+            if (string.IsNullOrEmpty(scalars.LoginName))
+            {
+                continue;
+            }
+
+            presences[scalars.LoginName] = Merge(
+                presences.TryGetValue(scalars.LoginName, out var current) ? current : null,
+                scalars);
+        }
+
+        return presences;
+    }
+
+    /// <summary>
+    /// Takes the presence summary for a single login name (#26), compared case-insensitively.
+    /// Cheaper than <see cref="GetLoginPresences"/> when only one login is of interest: it scans
+    /// the per-entry scalars without building the full dictionary.
+    /// </summary>
+    /// <param name="loginName">The login name to look up.</param>
+    /// <param name="presence">The aggregated summary on success; otherwise <see langword="null"/>.</param>
+    /// <returns>
+    /// <see langword="true"/> if any tracked entry carries <paramref name="loginName"/>; otherwise
+    /// <see langword="false"/> (including for an empty name &#8212; anonymous entries are never matched).
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="loginName"/> is <see langword="null"/>.</exception>
+    public bool TryGetLoginPresence(string loginName, [NotNullWhen(true)] out LoginPresence? presence)
+    {
+        ArgumentNullException.ThrowIfNull(loginName);
+
+        presence = null;
+        if (loginName.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var entry in _entries.Values)
+        {
+            var scalars = entry.ReadPresenceScalars();
+            if (string.Equals(scalars.LoginName, loginName, StringComparison.OrdinalIgnoreCase))
+            {
+                presence = Merge(presence, scalars);
+            }
+        }
+
+        return presence is not null;
+    }
+
+    /// <summary>
+    /// Folds one entry's scalars into a login's running summary. The first entry seen fixes the
+    /// reported casing; <c>IsOnline</c> is the canonical predicate (any non-stale entry with at
+    /// least one active session).
+    /// </summary>
+    private static LoginPresence Merge(LoginPresence? current, ConnectionEntry.PresenceScalars scalars)
+    {
+        var online = !scalars.IsStale && scalars.ActiveSessionCount > 0;
+        return current is null
+            ? new LoginPresence(scalars.LoginName!, online, scalars.ActiveSessionCount, ClientCount: 1, scalars.LastSeenUtc)
+            : current with
+            {
+                IsOnline = current.IsOnline || online,
+                ActiveSessionCount = current.ActiveSessionCount + scalars.ActiveSessionCount,
+                ClientCount = current.ClientCount + 1,
+                LastSeenUtc = scalars.LastSeenUtc > current.LastSeenUtc ? scalars.LastSeenUtc : current.LastSeenUtc,
+            };
     }
 
     private void OnChanged()

@@ -134,6 +134,22 @@ internal sealed class ConnectionEntry
         }
     }
 
+    /// <summary>
+    /// Reads only the scalars the login-presence projection needs (#26) &#8212; no history,
+    /// session-list, or user-agent copies, so presence checks stay allocation-cheap.
+    /// </summary>
+    internal PresenceScalars ReadPresenceScalars()
+    {
+        lock (_gate)
+        {
+            return new PresenceScalars(_loginName, _sessions.Count, _stale, _lastSeen);
+        }
+    }
+
+    /// <summary>The per-entry scalars the presence projection aggregates per login name (#26).</summary>
+    internal readonly record struct PresenceScalars(
+        string? LoginName, int ActiveSessionCount, bool IsStale, DateTimeOffset LastSeenUtc);
+
     private void Append(ConnectionHistoryPoint point)
     {
         _history.Enqueue(point);
