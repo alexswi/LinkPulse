@@ -139,6 +139,9 @@ public sealed class LoginPresenceTests
         Assert.True(registry.TryGetLoginPresence("alice", out var presence));
         Assert.True(presence!.IsOnline);
         Assert.Equal(2, presence.ClientCount);
+        // The counts fold in the stale-but-retained client too (its session never closed), so
+        // ActiveSessionCount is non-zero independently of IsOnline — see the caveat on LoginPresence.
+        Assert.Equal(2, presence.ActiveSessionCount);
         Assert.Equal(T0.AddMilliseconds(2_000), presence.LastSeenUtc);
     }
 
