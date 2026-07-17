@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using LinkPulse.Abstractions;
 
 namespace LinkPulse.Server;
@@ -223,9 +224,10 @@ public sealed class LinkPulseRegistry
                 continue;
             }
 
-            presences[scalars.LoginName] = Merge(
-                presences.TryGetValue(scalars.LoginName, out var current) ? current : null,
-                scalars);
+            // Single hash per entry: get a ref to the (case-insensitive) slot, adding it as null on
+            // first sight. An existing slot keeps its original key casing, matching indexer semantics.
+            ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(presences, scalars.LoginName, out var exists);
+            slot = Merge(exists ? slot : null, scalars);
         }
 
         return presences;
